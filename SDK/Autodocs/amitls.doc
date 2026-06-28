@@ -1,0 +1,931 @@
+TABLE OF CONTENTS
+
+amitls.library/background
+amitls.library/errors
+amitls.library/hooks
+amitls.library/tags
+amitls.library/TlsBaseTagList
+amitls.library/TlsError
+amitls.library/TlsGetErrorString
+amitls.library/TlsTaskAttach
+amitls.library/TlsTaskDetach
+amitls.library/NewTlsContext
+amitls.library/DisposeTlsContext
+amitls.library/SetTlsContextAttrsA
+amitls.library/NewTlsConnection
+amitls.library/DisposeTlsConnection
+amitls.library/TlsAttachSocket
+amitls.library/TlsHandshake
+amitls.library/TlsRead
+amitls.library/TlsWrite
+amitls.library/TlsPending
+amitls.library/TlsShutdown
+amitls.library/TlsGetLastError
+amitls.library/TlsGetCertVerifyDetail
+amitls.library/TlsGetPeerCert
+amitls.library/TlsPeerCertFree
+amitls.library/TlsLoadCABundle
+amitls.library/TlsAddTrustedCert
+amitls.library/TlsClearTrustedCerts
+amitls.library/background                         amitls.library/background
+
+   PURPOSE
+
+   amitls.library is an AmigaOS TLS client shared library wrapping BearSSL.
+   Applications hold opaque TlsContext and TlsConnection handles; BearSSL
+   engine structures, x509 contexts, and socket I/O buffers are never exposed.
+
+   amitls does not perform DNS lookup, TCP connect(), or close() on sockets.
+   The caller opens bsdsocket.library, connects a TCP socket, passes the fd
+   to TlsAttachSocket(), and closes the socket after TlsShutdown() and
+   DisposeTlsConnection().
+
+   BOOTSTRAP
+
+   OpenLibrary(AMITLSNAME, AMITLSVERSION) opens dos.library and
+   utility.library internally.  bsdsocket.library is caller-owned: open it
+   in your task and pass the base to TlsTaskAttach(), following the AmiSSL
+   AmiSSL_SocketBase model.
+
+   API TIERS
+
+   Tier 0 — TlsBaseTagList / TlsError
+     Per-process defaults (CA bundle path, verify policy, break mask).
+
+   Tier 1 — TlsTaskAttach, TlsContext
+     Per-Exec-task socket/errno binding and persistent TLS settings (verify
+     policy, CA bundle override, optional cert hook).
+
+   Tier 2 — TlsConnection  (primary API)
+     Attach TLS to an existing TCP socket, complete handshake, stream
+     encrypted read/write.  Used by amihttp.library for HTTPS and by any
+     protocol client over TLS.
+
+   Tier 3 — Trust store
+     PEM CA bundle loading via tags or TlsLoadCABundle().  In-memory cert
+     add (TlsAddTrustedCert) is reserved.
+
+   TYPICAL TIER 2 FLOW
+
+   TlsBase = OpenLibrary(AMITLSNAME, AMITLSVERSION);
+   SocketBase = OpenLibrary("bsdsocket.library", 4);
+   TlsTaskAttach(SocketBase, (APTR)&errno);
+   TlsBaseTagList(ATBT_CA_BUNDLE_PATH, (ULONG)"RAM:mozilla.pem", TAG_DONE);
+
+   ctx = NewTlsContext(NULL);
+   conn = NewTlsConnection(ctx);
+   sock = /* socket() + connect() to host:443 in caller code */;
+   TlsAttachSocket(conn, sock, hostname,
+       ATTA_SSL_VERIFY, ATSSL_VERIFY_PEER, TAG_DONE);
+   TlsWrite(conn, request, request_len);   /* handshake completes here */
+   while ((n = TlsRead(conn, buf, sizeof(buf), 30)) > 0) {
+       /* process buf[0..n-1] */
+   }
+   TlsShutdown(conn);
+   close(sock);
+   DisposeTlsConnection(conn);
+   DisposeTlsContext(ctx);
+   TlsTaskDetach();
+   CloseLibrary(TlsBase);
+
+   DEFERRED HANDSHAKE (read server banner before client write)
+
+   TlsAttachSocket(conn, sock, hostname, TAG_DONE);
+   TlsHandshake(conn, 30);                 /* revision 2+ / ABI v1.1 */
+   TlsRead(conn, banner, sizeof(banner), 5);
+   TlsWrite(conn, request, request_len);
+
+   NON-BLOCKING / LAYERED I/O (amihttp async)
+
+   TlsAttachSocket(conn, sock, hostname,
+       ATTA_NON_BLOCKING, TRUE,
+       ATTA_EXTERNAL_WAIT, TRUE,
+       TAG_DONE);
+   rc = TlsWrite(conn, buf, len);
+   while (rc == ERROR_TLS_WANT_READ || rc == ERROR_TLS_WANT_WRITE) {
+       WaitSelect on sock;
+       rc = TlsWrite(conn, buf, len);       /* retry same call */
+   }
+
+   OWNERSHIP AND LIFETIME
+
+   - TlsTaskAttach() once per Exec task that performs TLS I/O; pair with
+     TlsTaskDetach() when the task is done (refcounted — nested attach OK).
+   - DisposeTlsContext() only after all TlsConnection handles referencing
+     it are disposed.
+   - NewTlsConnection(NULL) creates an internal TlsContext owned by the
+     connection; DisposeTlsConnection() frees it automatically.
+   - The library never closes the TCP socket fd; caller owns sock for its
+     entire lifetime.
+   - struct TlsPeerCert strings from TlsGetPeerCert() are caller-owned;
+     free with TlsPeerCertFree().
+
+   ERROR MODEL
+
+   Two scopes:
+     TlsError() — bootstrap, task attach, context allocation, trust stubs.
+     TlsGetLastError(conn) — authoritative for TlsRead/TlsWrite/TlsHandshake/
+         TlsShutdown on that connection.
+
+   TlsRead/TlsWrite success returns a positive byte count (< ERROR_TLS_NOT_IMPLEMENTED).
+   Failure returns ERROR_TLS_* (8800..8816).  Non-blocking mode may return
+   ERROR_TLS_WANT_READ or ERROR_TLS_WANT_WRITE; WaitSelect on the raw TCP fd
+   and retry the same call.
+
+   See amitls.library/errors.
+
+   REQUIREMENTS
+
+   - AmigaOS 3.2 or 4.1.
+   - bsdsocket.library (caller opens; pass base to TlsTaskAttach).
+   - dos.library v37+, utility.library v36+ (opened internally).
+
+   INCLUDE FILES
+
+   #include <libraries/amitls.h>
+   #include <proto/atls.h>
+
+   SEE ALSO
+       amitls.library/tags, amitls.library/errors, amitls.library/hooks,
+       SDK/Examples/ATlsTest.c, amihttp.library/background
+
+amitls.library/errors                             amitls.library/errors
+
+   GENERAL INFORMATION
+
+   amitls.library defines ERROR_TLS_* codes in the 8800 range.  After any
+   LVO returning a negative ERROR_TLS_* value, call TlsError() or
+   TlsGetLastError(conn) as appropriate.  TlsGetErrorString(code) returns a
+   static English description.
+
+   CODES
+
+   ERROR_TLS_NOT_IMPLEMENTED (8800)
+       Feature or LVO not yet implemented (e.g. TlsAddTrustedCert).
+
+   ERROR_TLS_DNS_FAILED (8801)
+       Reserved — amitls does not perform DNS; caller resolves hostnames.
+
+   ERROR_TLS_CONNECT_FAILED (8802)
+       Reserved — TCP connect is caller-owned.
+
+   ERROR_TLS_CONNECT_TIMEOUT (8803)
+       Handshake or engine I/O retry limit exceeded (TlsHandshake).
+
+   ERROR_TLS_HANDSHAKE (8804)
+       TLS handshake failed, or TlsRead/TlsWrite called before handshake
+       completed.
+
+   ERROR_TLS_VERIFY (8805)
+       Certificate chain or hostname verification failed.  Call
+       TlsGetCertVerifyDetail(conn) for the BearSSL brerr code.
+
+   ERROR_TLS_READ_TIMEOUT (8806)
+       TlsRead timed out waiting for decrypted data (timeout_secs > 0).
+
+   ERROR_TLS_WRITE_FAILED (8807)
+       Encrypted send failed after handshake completed.
+
+   ERROR_TLS_READ_FAILED (8808)
+       Encrypted read failed or unexpected EOF after handshake.
+
+   ERROR_TLS_ABORTED (8809)
+       Reserved for future abort/cancel support.
+
+   ERROR_TLS_PROTOCOL (8810)
+       TLS protocol error (e.g. TlsGetPeerCert when no certificate present).
+
+   ERROR_TLS_OUT_OF_MEMORY (8811)
+       Memory allocation failed.
+
+   ERROR_TLS_INVALID_URL (8812)
+       Reserved — URL parsing is not an amitls concern.
+
+   ERROR_TLS_INVALID_HANDLE (8813)
+       Bad or disposed handle, or NULL required argument.
+
+   ERROR_TLS_IO (8814)
+       bsdsocket I/O error, or TlsAttachSocket/TlsRead/TlsWrite without a
+       prior TlsTaskAttach on the current Exec task.
+
+   ERROR_TLS_WANT_READ (8815)
+       Non-blocking: engine needs socket read before retrying same call.
+
+   ERROR_TLS_WANT_WRITE (8816)
+       Non-blocking: engine needs socket write before retrying same call.
+
+   SEE ALSO
+       TlsError(), TlsGetLastError(), TlsGetErrorString(),
+       TlsGetCertVerifyDetail(), ATBT_ERRNOPTR
+
+amitls.library/hooks                               amitls.library/hooks
+
+   GENERAL INFORMATION
+
+   Certificate verification hooks are configured with SetTlsContextAttrsA()
+   ATSA_CERT_HOOK.  The hook pointer is stored on TlsContext but is not yet
+   invoked by the library (reserved for v2, mirroring amihttp HTHK_CERT_VERIFY).
+
+   HOOK TYPES
+
+   ATHK_CERT_VERIFY (1)       — reserved; not yet dispatched.
+
+   PLANNED MESSAGE (v2)
+
+   When implemented, the library will dispatch via utility.library
+   CallHookPkt() with a message struct carrying the TlsConnection, filled
+   TlsPeerCert, BearSSL verify result, and an BOOL accept override.
+
+   SEE ALSO
+       SetTlsContextAttrsA(), ATSA_CERT_HOOK, TlsGetPeerCert(),
+       amihttp.library/hooks
+
+amitls.library/tags                                 amitls.library/tags
+
+   GENERAL INFORMATION
+
+   TagItem-based configuration uses TlsBaseTagList(), NewTlsContext(),
+   SetTlsContextAttrsA(), and TlsAttachSocket().  All tag lists are
+   terminated with TAG_DONE.
+
+   ATBT_* — TlsBaseTagList (Tier 0)
+
+   ATBT_ERRNOPTR
+       Pointer to ULONG receiving a copy of TlsError() on failure paths
+       that set the library-wide error code.
+
+   ATBT_SSL_VERIFY
+       Process-wide default verify policy: ATSSL_VERIFY_NONE,
+       ATSSL_VERIFY_PEER (default at OpenLibrary), or
+       ATSSL_VERIFY_PEER_STRICT.  Overridden per context (ATSA) or per
+       attach (ATTA).
+
+   ATBT_CA_BUNDLE_PATH
+       STRPTR path to a PEM file containing trusted CA certificates.
+       Required before ATSSL_VERIFY_PEER handshakes succeed.  No implicit
+       default path — caller must set this or ATSA_CA_BUNDLE_PATH.
+
+   ATBT_BREAKMASK
+       Exec signal mask (e.g. SIGBREAKF_CTRL_C) for future blocking I/O
+       abort polling.  Reserved for v2.
+
+   ATBT_LOG_HOOK
+       Reserved for v2 diagnostic hook.
+
+   ATSA_* — NewTlsContext / SetTlsContextAttrsA (Tier 1)
+
+   ATSA_SSL_VERIFY
+       Per-context verify policy override.
+
+   ATSA_CIPHER_POLICY
+       ATCP_DEFAULT, ATCP_MODERN, or ATCP_COMPAT — reserved for v2.
+
+   ATSA_ALPN
+       STRPTR ALPN protocol list — stored but not yet sent on the wire.
+
+   ATSA_CERT_HOOK
+       struct Hook * for ATHK_CERT_VERIFY — stored, not yet invoked.
+
+   ATSA_CA_BUNDLE_PATH
+       Per-context PEM CA bundle override.  Clears cached anchors and
+       reloads from the new path on next handshake requiring verification.
+       Inherits ATBT_CA_BUNDLE_PATH when unset.
+
+   ATTA_* — TlsAttachSocket (Tier 2)
+
+   ATTA_SSL_VERIFY
+       Per-connection verify policy override for this attach.
+
+   ATTA_NON_BLOCKING
+       When TRUE, socket recv/send use non-blocking semantics and
+       TlsRead/TlsWrite return ERROR_TLS_WANT_READ/WRITE instead of
+       blocking internally.
+
+   ATTA_EXTERNAL_WAIT
+       When TRUE (ABI v1.1, library revision 2+), TlsHandshake and
+       TlsRead do not call WaitSelect internally on WANT conditions;
+       the caller must wait on the raw TCP fd and retry.  Required for
+       layered timeout/abort polling (amihttp ht_wait_socket_io).
+
+   ATSSL_VERIFY_* values
+
+   ATSSL_VERIFY_NONE           0 — no chain validation (insecure x509 engine).
+   ATSSL_VERIFY_PEER           1 — validate chain against CA bundle + hostname.
+   ATSSL_VERIFY_PEER_STRICT    2 — same as PEER (strict hostname reserved v2).
+
+   SEE ALSO
+       TlsBaseTagList(), NewTlsContext(), SetTlsContextAttrsA(),
+       TlsAttachSocket(), amitls.library/background
+
+amitls.library/TlsBaseTagList                   amitls.library/TlsBaseTagList
+
+   NAME
+       TlsBaseTagList -- Set per-process library defaults.  (V1)
+
+   SYNOPSIS
+       rc = TlsBaseTagList(tags);
+       D0                    A0
+
+       LONG TlsBaseTagList(struct TagItem *tags);
+
+   FUNCTION
+       Configures process-wide defaults after OpenLibrary().  Tags are
+       ATBT_* values; see amitls.library/tags.
+
+   INPUTS
+       tags - TagItem array terminated with TAG_DONE.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_INVALID_HANDLE on bad library base.
+
+   SEE ALSO
+       TlsError(), amitls.library/tags, TlsLoadCABundle()
+
+amitls.library/TlsError                               amitls.library/TlsError
+
+   NAME
+       TlsError -- Return current library error code.  (V1)
+
+   SYNOPSIS
+       code = TlsError();
+       D0
+
+       LONG TlsError(VOID);
+
+   FUNCTION
+       Returns the most recent ERROR_TLS_* code for this process at library
+       scope (task attach, context allocation, trust path configuration).
+       Cleared to 0 on successful Tier 0/1 LVO calls.  For connection I/O,
+       prefer TlsGetLastError(conn).
+
+   RESULT
+       code - 0 if no error, otherwise ERROR_TLS_* value.
+
+   SEE ALSO
+       TlsGetLastError(), TlsGetErrorString(), amitls.library/errors
+
+amitls.library/TlsGetErrorString             amitls.library/TlsGetErrorString
+
+   NAME
+       TlsGetErrorString -- English text for an error code.  (V1)
+
+   SYNOPSIS
+       str = TlsGetErrorString(code);
+       D0                      D0
+
+       STRPTR TlsGetErrorString(LONG code);
+
+   FUNCTION
+       Returns a static string describing an ERROR_TLS_* code.
+
+   INPUTS
+       code - ERROR_TLS_* value, or 0 for "No error".
+
+   RESULT
+       str - read-only description string.
+
+   SEE ALSO
+       TlsError(), TlsGetLastError(), amitls.library/errors
+
+amitls.library/TlsTaskAttach                     amitls.library/TlsTaskAttach
+
+   NAME
+       TlsTaskAttach -- Bind bsdsocket to current Exec task.  (V1)
+
+   SYNOPSIS
+       rc = TlsTaskAttach(SocketBase, errno_ptr);
+       D0                       A0           A1
+
+       LONG TlsTaskAttach(struct Library *SocketBase, APTR errno_ptr);
+
+   FUNCTION
+       Registers the current Exec task for TLS I/O.  Copies SocketBase and
+       errno_ptr into per-task state and calls SocketBaseTagList() so
+       bsdsocket.library calls from amitls resolve correctly.
+
+       Must be called once per task before TlsAttachSocket, TlsRead,
+       TlsWrite, TlsHandshake, or TlsShutdown.  Refcounted — repeated
+       attach on the same task increments the count.
+
+       If SocketBase is NULL, uses the last non-NULL base stored on the
+       library from a prior attach.  If errno_ptr is NULL, uses ATBT_ERRNOPTR
+       or the global errno symbol.
+
+   INPUTS
+       SocketBase - bsdsocket.library base from OpenLibrary(), or NULL.
+       errno_ptr  - pointer to int errno for this task, or NULL.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_IO if no socket base available,
+           ERROR_TLS_OUT_OF_MEMORY, or ERROR_TLS_INVALID_HANDLE.
+
+   NOTES
+       TlsAttachSocket without a prior TlsTaskAttach on the same task
+       returns ERROR_TLS_IO.
+
+   SEE ALSO
+       TlsTaskDetach(), TlsAttachSocket(), amitls.library/background
+
+amitls.library/TlsTaskDetach                     amitls.library/TlsTaskDetach
+
+   NAME
+       TlsTaskDetach -- Release per-task TLS runtime.  (V1)
+
+   SYNOPSIS
+       TlsTaskDetach();
+       void
+
+       VOID TlsTaskDetach(VOID);
+
+   FUNCTION
+       Decrements the current task's attach refcount and removes per-task
+       state when the count reaches zero.  Does not close bsdsocket.library
+       (caller-owned).
+
+   SEE ALSO
+       TlsTaskAttach()
+
+amitls.library/NewTlsContext                     amitls.library/NewTlsContext
+
+   NAME
+       NewTlsContext -- Allocate a TLS settings context.  (V1)
+
+   SYNOPSIS
+       ctx = NewTlsContext(tags);
+       D0                    A0
+
+       struct TlsContext *NewTlsContext(struct TagItem *tags);
+
+   FUNCTION
+       Creates a Tier 1 context inheriting ATBT_* defaults (verify policy
+       ATSSL_VERIFY_PEER, no CA bundle until configured).  Optional tags
+       are ATSA_* values applied at creation; see amitls.library/tags.
+
+   INPUTS
+       tags - TagItem list, or NULL for defaults only.
+
+   RESULT
+       ctx - opaque handle, or NULL on failure (TlsError()).
+
+   SEE ALSO
+       DisposeTlsContext(), SetTlsContextAttrsA(), NewTlsConnection()
+
+amitls.library/DisposeTlsContext             amitls.library/DisposeTlsContext
+
+   NAME
+       DisposeTlsContext -- Free a TLS context.  (V1)
+
+   SYNOPSIS
+       DisposeTlsContext(ctx);
+                         A0
+
+       VOID DisposeTlsContext(struct TlsContext *ctx);
+
+   FUNCTION
+       Frees context state including cached trust anchors and ALPN string.
+       All TlsConnection handles referencing this context must be disposed
+       first (except connections that own an internal context via
+       NewTlsConnection(NULL)).
+
+   INPUTS
+       ctx - from NewTlsContext(), or NULL (no action).
+
+   SEE ALSO
+       NewTlsContext()
+
+amitls.library/SetTlsContextAttrsA         amitls.library/SetTlsContextAttrsA
+
+   NAME
+       SetTlsContextAttrsA -- Configure TLS context.  (V1)
+
+   SYNOPSIS
+       rc = SetTlsContextAttrsA(ctx, tags);
+       D0                         A0   A1
+
+       LONG SetTlsContextAttrsA(struct TlsContext *ctx, struct TagItem *tags);
+
+   FUNCTION
+       Applies ATSA_* tags.  See amitls.library/tags.
+
+   INPUTS
+       ctx  - valid TlsContext handle.
+       tags - TagItem list, TAG_DONE terminated.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_INVALID_HANDLE when ctx is NULL.
+
+   SEE ALSO
+       NewTlsContext(), amitls.library/tags
+
+amitls.library/NewTlsConnection               amitls.library/NewTlsConnection
+
+   NAME
+       NewTlsConnection -- Create a TLS connection handle.  (V1)
+
+   SYNOPSIS
+       conn = NewTlsConnection(ctx);
+       D0                        A0
+
+       struct TlsConnection *NewTlsConnection(struct TlsContext *ctx);
+
+   FUNCTION
+       Allocates a Tier 2 connection handle.  When ctx is NULL, creates and
+       owns an internal TlsContext with library defaults.
+
+   INPUTS
+       ctx - parent TlsContext, or NULL to auto-create one.
+
+   RESULT
+       conn - opaque handle, or NULL on failure (TlsError()).
+
+   SEE ALSO
+       DisposeTlsConnection(), TlsAttachSocket()
+
+amitls.library/DisposeTlsConnection       amitls.library/DisposeTlsConnection
+
+   NAME
+       DisposeTlsConnection -- Free connection state.  (V1)
+
+   SYNOPSIS
+       DisposeTlsConnection(conn);
+                              A0
+
+       VOID DisposeTlsConnection(struct TlsConnection *conn);
+
+   FUNCTION
+       Releases BearSSL engine state and peer certificate cache.  Does not
+       close the TCP socket — caller must close(sock) separately.  When the
+       connection owns an internal context (NewTlsConnection(NULL)), disposes
+       that context too.
+
+   INPUTS
+       conn - TlsConnection handle, or NULL.
+
+   SEE ALSO
+       NewTlsConnection(), TlsShutdown()
+
+amitls.library/TlsAttachSocket                 amitls.library/TlsAttachSocket
+
+   NAME
+       TlsAttachSocket -- Install TLS on an existing TCP socket.  (V1)
+
+   SYNOPSIS
+       rc = TlsAttachSocket(conn, sock, hostname, tags);
+       D0                     A0   D0   A1        A2
+
+       LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock,
+           STRPTR hostname, struct TagItem *tags);
+
+   FUNCTION
+       Initializes BearSSL client engine on sock.  hostname is used for
+       SNI and certificate hostname verification.  Applies ATTA_* tags.
+
+       Does not perform the TLS handshake — that completes on the first
+       successful TlsWrite(), or explicitly via TlsHandshake() (revision 2+).
+
+       Snapshots the current task's SocketBase/errno into the connection.
+       Requires TlsTaskAttach() on the calling Exec task.
+
+   INPUTS
+       conn     - TlsConnection handle.
+       sock     - connected TCP socket fd from caller's connect().
+       hostname - server name for SNI/verify (not resolved here).
+       tags     - optional ATTA_* TagItem list, or NULL.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_* on failure.  Sets TlsGetLastError(conn).
+
+   SEE ALSO
+       TlsWrite(), TlsHandshake(), TlsTaskAttach(), amitls.library/tags
+
+amitls.library/TlsHandshake                       amitls.library/TlsHandshake
+
+   NAME
+       TlsHandshake -- Complete TLS handshake without application data.  (V1.1)
+
+   SYNOPSIS
+       rc = TlsHandshake(conn, timeout_secs);
+       D0                  A0   D0
+
+       LONG TlsHandshake(struct TlsConnection *conn, ULONG timeout_secs);
+
+   FUNCTION
+       Drives the BearSSL handshake to completion without sending application
+       payload.  Use when the protocol requires reading a server banner (e.g.
+       SMTP, IMAP) before the first client write.
+
+       When ATTA_EXTERNAL_WAIT is TRUE, returns ERROR_TLS_WANT_READ/WRITE
+       instead of blocking; caller WaitSelect's on the socket and retries.
+
+       Library revision 2+ (AMITLSVERSION 1, revision 2).
+
+   INPUTS
+       conn          - TlsConnection after TlsAttachSocket().
+       timeout_secs  - reserved for future per-call timeout; engine uses
+           internal retry limits (ERROR_TLS_CONNECT_TIMEOUT on exhaustion).
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_* on failure.
+
+   SEE ALSO
+       TlsAttachSocket(), TlsWrite(), ATTA_EXTERNAL_WAIT
+
+amitls.library/TlsRead                                 amitls.library/TlsRead
+
+   NAME
+       TlsRead -- Read decrypted application data.  (V1)
+
+   SYNOPSIS
+       n = TlsRead(conn, buffer, buflen, timeout_secs);
+       D0            A0   A1       D0        D1
+
+       LONG TlsRead(struct TlsConnection *conn, APTR buffer, ULONG buflen,
+           ULONG timeout_secs);
+
+   FUNCTION
+       Copies up to buflen decrypted bytes into caller buffer.  Returns
+       immediately when decrypted data is already buffered (TlsPending > 0).
+
+       Requires completed handshake (TlsWrite or TlsHandshake).  Before
+       handshake, returns ERROR_TLS_HANDSHAKE.
+
+       When ATTA_NON_BLOCKING is set, may return ERROR_TLS_WANT_READ/WRITE.
+       When ATTA_EXTERNAL_WAIT is set during handshake polling, same WANT
+       semantics apply — caller waits on sock and retries.
+
+       timeout_secs: 0 selects internal retry limit then ERROR_TLS_READ_TIMEOUT;
+       >0 uses WaitSelect with that second count between engine polls (unless
+       ATTA_EXTERNAL_WAIT).
+
+   INPUTS
+       conn          - TlsConnection after handshake.
+       buffer        - destination buffer (caller allocated).
+       buflen        - size of buffer in bytes.
+       timeout_secs  - read wait timeout in seconds.
+
+   RESULT
+       n - bytes read (>0), 0 at clean EOF, or ERROR_TLS_* on failure.
+
+   SEE ALSO
+       TlsWrite(), TlsPending(), TlsGetLastError()
+
+amitls.library/TlsWrite                               amitls.library/TlsWrite
+
+   NAME
+       TlsWrite -- Write encrypted application data.  (V1)
+
+   SYNOPSIS
+       n = TlsWrite(conn, buffer, len);
+       D0             A0   A1       D0
+
+       LONG TlsWrite(struct TlsConnection *conn, APTR buffer, ULONG len);
+
+   FUNCTION
+       Encrypts and sends len bytes.  On the first TlsWrite after
+       TlsAttachSocket(), completes the TLS handshake (client hello through
+       finished).  Certificate verification runs during handshake when
+       verify policy is not ATSSL_VERIFY_NONE.
+
+       Non-blocking: returns ERROR_TLS_WANT_READ/WRITE; retry the same call
+       after WaitSelect on the raw TCP fd.
+
+   INPUTS
+       conn   - TlsConnection after TlsAttachSocket().
+       buffer - source data.
+       len    - byte count (>0).
+
+   RESULT
+       n - len on success (>0), or ERROR_TLS_* on failure.
+
+   NOTES
+       A verify failure during handshake returns ERROR_TLS_VERIFY; query
+       TlsGetCertVerifyDetail() and TlsGetPeerCert() for diagnostics.
+
+   SEE ALSO
+       TlsRead(), TlsAttachSocket(), TlsHandshake()
+
+amitls.library/TlsPending                           amitls.library/TlsPending
+
+   NAME
+       TlsPending -- Decrypted bytes ready without blocking read.  (V1)
+
+   SYNOPSIS
+       n = TlsPending(conn);
+       D0             A0
+
+       ULONG TlsPending(struct TlsConnection *conn);
+
+   FUNCTION
+       Returns count of application data bytes already decrypted and waiting
+       in the BearSSL engine buffer.  TlsRead will return immediately for
+       up to this many bytes without socket I/O.
+
+   INPUTS
+       conn - TlsConnection handle.
+
+   RESULT
+       n - pending byte count, or 0 when none or bad handle.
+
+   SEE ALSO
+       TlsRead()
+
+amitls.library/TlsShutdown                         amitls.library/TlsShutdown
+
+   NAME
+       TlsShutdown -- Send TLS close_notify.  (V1)
+
+   SYNOPSIS
+       rc = TlsShutdown(conn);
+       D0               A0
+
+       LONG TlsShutdown(struct TlsConnection *conn);
+
+   FUNCTION
+       Sends TLS shutdown alert (close_notify) on the connection.  Does not
+       close the TCP socket.  Safe to call after I/O completes; suppresses
+       further fatal alerts on dispose.
+
+   INPUTS
+       conn - TlsConnection handle.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_* on failure.
+
+   SEE ALSO
+       DisposeTlsConnection(), close()
+
+amitls.library/TlsGetLastError                 amitls.library/TlsGetLastError
+
+   NAME
+       TlsGetLastError -- Per-connection error code.  (V1)
+
+   SYNOPSIS
+       code = TlsGetLastError(conn);
+       D0                     A0
+
+       LONG TlsGetLastError(struct TlsConnection *conn);
+
+   FUNCTION
+       Returns the last ERROR_TLS_* for this connection's I/O.  Authoritative
+       after TlsRead, TlsWrite, TlsHandshake, TlsShutdown, and TlsAttachSocket.
+       Separate from TlsError() library-scope errors.
+
+   INPUTS
+       conn - TlsConnection handle.
+
+   RESULT
+       code - ERROR_TLS_* or 0.
+
+   SEE ALSO
+       TlsError(), TlsGetCertVerifyDetail(), amitls.library/errors
+
+amitls.library/TlsGetCertVerifyDetail   amitls.library/TlsGetCertVerifyDetail
+
+   NAME
+       TlsGetCertVerifyDetail -- BearSSL verify error after ERROR_TLS_VERIFY.  (V1)
+
+   SYNOPSIS
+       brerr = TlsGetCertVerifyDetail(conn);
+       D0                           A0
+
+       LONG TlsGetCertVerifyDetail(struct TlsConnection *conn);
+
+   FUNCTION
+       After ERROR_TLS_VERIFY from handshake or write, returns the BearSSL
+       brerr code (e.g. BR_ERR_X509_NOT_TRUSTED, BR_ERR_X509_EXPIRED).
+       Maps to struct TlsPeerCert.tpc_VerifyResult when peer cert is copied.
+
+   INPUTS
+       conn - TlsConnection after failed verify.
+
+   RESULT
+       brerr - BearSSL error code, or 0 when unavailable.
+
+   SEE ALSO
+       TlsGetPeerCert(), ERROR_TLS_VERIFY, amitls.library/errors
+
+amitls.library/TlsGetPeerCert                   amitls.library/TlsGetPeerCert
+
+   NAME
+       TlsGetPeerCert -- Copy TLS peer certificate fields.  (V1)
+
+   SYNOPSIS
+       rc = TlsGetPeerCert(conn, cert);
+       D0                  A0   A1
+
+       LONG TlsGetPeerCert(struct TlsConnection *conn,
+           struct TlsPeerCert *cert);
+
+   FUNCTION
+       After handshake, fills struct TlsPeerCert with strdup'd strings:
+       tpc_Subject, tpc_Issuer, tpc_CommonName, tpc_NotBefore, tpc_NotAfter,
+       tpc_Serial, tpc_VerifyResult.  Caller must TlsPeerCertFree() when done.
+
+       May be called before handshake to test API (returns ERROR_TLS_PROTOCOL
+       when no certificate cached yet).
+
+   INPUTS
+       conn - TlsConnection after attach (handshake optional).
+       cert - caller-allocated struct TlsPeerCert (need not be zeroed).
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_INVALID_HANDLE, or ERROR_TLS_PROTOCOL
+           when no peer certificate is available.
+
+   SEE ALSO
+       TlsPeerCertFree(), struct TlsPeerCert, TlsGetCertVerifyDetail()
+
+amitls.library/TlsPeerCertFree                   amitls.library/TlsPeerCertFree
+
+   NAME
+       TlsPeerCertFree -- Free certificate strings from GetPeerCert.  (V1)
+
+   SYNOPSIS
+       TlsPeerCertFree(cert);
+                       A0
+
+       VOID TlsPeerCertFree(struct TlsPeerCert *cert);
+
+   FUNCTION
+       Frees STRPTR fields allocated by TlsGetPeerCert().
+
+   INPUTS
+       cert - struct TlsPeerCert from TlsGetPeerCert().
+
+   SEE ALSO
+       TlsGetPeerCert()
+
+amitls.library/TlsLoadCABundle                   amitls.library/TlsLoadCABundle
+
+   NAME
+       TlsLoadCABundle -- Set process-wide PEM CA bundle path.  (V1)
+
+   SYNOPSIS
+       rc = TlsLoadCABundle(path);
+       D0                   A0
+
+       LONG TlsLoadCABundle(STRPTR path);
+
+   FUNCTION
+       Sets the same process-wide PEM bundle path as ATBT_CA_BUNDLE_PATH.
+       Convenience for callers that configure trust via function call instead
+       of TlsBaseTagList().  Does not parse the file until a VERIFY_PEER
+       handshake requires anchors.
+
+       amitls does not search for a default bundle — caller must supply a
+       path (e.g. Mozilla cacert.pem, RAM:mozilla.pem).
+
+   INPUTS
+       path - STRPTR filesystem path to PEM CA file.
+
+   RESULT
+       rc - 0 on success, ERROR_TLS_INVALID_HANDLE or ERROR_TLS_OUT_OF_MEMORY.
+
+   SEE ALSO
+       TlsBaseTagList(), ATBT_CA_BUNDLE_PATH, ATSA_CA_BUNDLE_PATH,
+       TlsClearTrustedCerts()
+
+amitls.library/TlsAddTrustedCert               amitls.library/TlsAddTrustedCert
+
+   NAME
+       TlsAddTrustedCert -- Add in-memory trusted certificate.  (V1)
+
+   SYNOPSIS
+       rc = TlsAddTrustedCert(data, len, format);
+       D0                     A0   D0   D1
+
+       LONG TlsAddTrustedCert(APTR data, ULONG len, ULONG format);
+
+   FUNCTION
+       Not yet implemented.  Returns ERROR_TLS_NOT_IMPLEMENTED.  Use
+       ATBT_CA_BUNDLE_PATH / ATSA_CA_BUNDLE_PATH with a PEM file instead.
+
+   INPUTS
+       data   - certificate bytes (unused).
+       len    - length (unused).
+       format - ATCF_DER or ATCF_PEM (unused).
+
+   RESULT
+       rc - ERROR_TLS_NOT_IMPLEMENTED.
+
+   SEE ALSO
+       TlsLoadCABundle(), amitls.library/tags
+
+amitls.library/TlsClearTrustedCerts         amitls.library/TlsClearTrustedCerts
+
+   NAME
+       TlsClearTrustedCerts -- Clear parsed CA anchors and bundle path.  (V1)
+
+   SYNOPSIS
+       TlsClearTrustedCerts();
+       void
+
+       VOID TlsClearTrustedCerts(VOID);
+
+   FUNCTION
+       Frees globally cached PEM trust anchors and clears ATBT_CA_BUNDLE_PATH.
+       Per-context trust (ATSA_CA_BUNDLE_PATH) is cleared when the owning
+       TlsContext is disposed or the path tag is changed.
+
+   SEE ALSO
+       TlsLoadCABundle(), DisposeTlsContext()
