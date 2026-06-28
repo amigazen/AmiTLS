@@ -1,0 +1,315 @@
+#
+# smakefile.bearssl - vendored BearSSL objects (third_party/bearssl/src only)
+#
+# Built once; rarely needs rebuild.  From lib_source:
+#   smake -f smakefile.bearssl
+#   smake -f smakefile.bearssl clean
+#
+# Normal library work uses smakefile (wrapper only + link).
+#
+# ECDSA chain verification requires bearssl/int/i15_rshift.o and
+# bearssl/ec/ecdsa_atr.o.  sha2big.o also needs dec64be.o and enc64be.o.  If the link step reports undefined
+# _br_i15_rshift or _br_ecdsa_asn1_to_raw, run:
+#   smake -f smakefile.bearssl clean
+#   smake -f smakefile.bearssl
+# then rebuild amitls.library (smake rebuild from lib_source).
+#
+
+CC      = vc
+CFLAGS  = -c99 -O2 -+ -DVBCC -c
+CFLAGS_LO = -c99 -O1 -+ -DVBCC -c
+RM      = delete force quiet
+
+INCL    = -I. -I../include -Iinclude
+BRINCL  = $(INCL) -Ibearssl_port -Ithird_party/bearssl/inc -Ithird_party/bearssl/src -DBR_LOMUL -DBR_USE_UNIX_TIME=0 -DBR_USE_WIN32_TIME=0
+
+BROBJS = bearssl/mac/hmac.o \
+         bearssl/int/i32_div32.o \
+         bearssl/int/i15_montmul.o bearssl/int/i15_iszero.o \
+         bearssl/int/i15_modpow2.o bearssl/int/i15_tmont.o \
+         bearssl/int/i15_ninv15.o bearssl/int/i15_add.o \
+         bearssl/int/i15_sub.o bearssl/int/i15_fmont.o \
+         bearssl/int/i15_modpow.o bearssl/int/i15_decmod.o \
+         bearssl/int/i15_muladd.o bearssl/int/i15_encode.o \
+         bearssl/int/i15_decode.o bearssl/int/i15_bitlen.o \
+         bearssl/int/i15_rshift.o \
+         bearssl/ssl/ssl_rec_gcm.o bearssl/ssl/ssl_rec_chapol.o bearssl/ssl/ssl_engine.o \
+         bearssl/ssl/ssl_client.o bearssl/ssl/ssl_hs_client.o \
+         bearssl/ssl/prf_sha256.o bearssl/ssl/prf_sha384.o bearssl/ssl/ssl_io.o bearssl/ssl/prf.o \
+         bearssl/symcipher/aes_ct_ctr.o bearssl/symcipher/aes_ct_enc.o \
+         bearssl/symcipher/aes_ct.o bearssl/symcipher/chacha20_ct.o \
+         bearssl/symcipher/poly1305_ctmul32.o bearssl/codec/ccopy.o \
+         bearssl/codec/dec32be.o bearssl/codec/enc32be.o \
+         bearssl/codec/dec64be.o bearssl/codec/enc64be.o \
+         bearssl/rand/hmac_drbg.o bearssl/rsa/rsa_i15_pub.o \
+         bearssl/rsa/rsa_i15_pkcs1_vrfy.o bearssl/rsa/rsa_pkcs1_sig_unpad.o \
+         bearssl/x509/x509_decoder.o bearssl/x509/x509_minimal.o \
+         bearssl/x509/asn1enc.o \
+         bearssl/ec/ec_p256_m15.o \
+         bearssl/ec/ec_all_m15.o bearssl/ec/ec_prime_i15.o \
+         bearssl/ec/ec_c25519_m15.o \
+         bearssl/ec/ec_secp256r1.o bearssl/ec/ec_secp384r1.o \
+         bearssl/ec/ec_secp521r1.o \
+         bearssl/ec/ecdsa_i15_bits.o \
+         bearssl/ec/ecdsa_i15_vrfy_asn1.o bearssl/ec/ecdsa_i15_vrfy_raw.o \
+         bearssl/ec/ecdsa_atr.o \
+         bearssl/hash/ghash_ctmul32.o bearssl/hash/sha2small.o \
+         bearssl/hash/sha2big.o bearssl/hash/multihash.o bearssl/hash/sha1.o
+
+STAMP   = bearssl_deps.stamp
+
+all: $(BROBJS) $(STAMP)
+
+rebuild: clean all
+
+$(STAMP): $(BROBJS) smakefile.bearssl
+	echo > $(STAMP)
+
+bearssl/mac/hmac.o: third_party/bearssl/src/mac/hmac.c
+	@Makedir bearssl/mac ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/mac/hmac.c
+
+bearssl/int/i32_div32.o: third_party/bearssl/src/int/i32_div32.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i32_div32.c
+
+bearssl/int/i15_montmul.o: third_party/bearssl/src/int/i15_montmul.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_montmul.c
+
+bearssl/int/i15_iszero.o: third_party/bearssl/src/int/i15_iszero.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_iszero.c
+
+bearssl/int/i15_modpow2.o: third_party/bearssl/src/int/i15_modpow2.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_modpow2.c
+
+bearssl/int/i15_tmont.o: third_party/bearssl/src/int/i15_tmont.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_tmont.c
+
+bearssl/int/i15_ninv15.o: third_party/bearssl/src/int/i15_ninv15.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_ninv15.c
+
+bearssl/int/i15_add.o: third_party/bearssl/src/int/i15_add.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_add.c
+
+bearssl/int/i15_sub.o: third_party/bearssl/src/int/i15_sub.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_sub.c
+
+bearssl/int/i15_fmont.o: third_party/bearssl/src/int/i15_fmont.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_fmont.c
+
+bearssl/int/i15_modpow.o: third_party/bearssl/src/int/i15_modpow.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_modpow.c
+
+bearssl/int/i15_decmod.o: third_party/bearssl/src/int/i15_decmod.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_decmod.c
+
+bearssl/int/i15_muladd.o: third_party/bearssl/src/int/i15_muladd.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_muladd.c
+
+bearssl/int/i15_encode.o: third_party/bearssl/src/int/i15_encode.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_encode.c
+
+bearssl/int/i15_decode.o: third_party/bearssl/src/int/i15_decode.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_decode.c
+
+bearssl/int/i15_bitlen.o: third_party/bearssl/src/int/i15_bitlen.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_bitlen.c
+
+bearssl/int/i15_rshift.o: third_party/bearssl/src/int/i15_rshift.c
+	@Makedir bearssl/int ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/int/i15_rshift.c
+
+bearssl/ssl/ssl_rec_gcm.o: third_party/bearssl/src/ssl/ssl_rec_gcm.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_rec_gcm.c
+
+bearssl/ssl/ssl_rec_chapol.o: third_party/bearssl/src/ssl/ssl_rec_chapol.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_rec_chapol.c
+
+bearssl/ssl/ssl_engine.o: third_party/bearssl/src/ssl/ssl_engine.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_engine.c
+
+bearssl/ssl/ssl_client.o: third_party/bearssl/src/ssl/ssl_client.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_client.c
+
+bearssl/ssl/ssl_hs_client.o: third_party/bearssl/src/ssl/ssl_hs_client.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_hs_client.c
+
+bearssl/ssl/prf_sha256.o: third_party/bearssl/src/ssl/prf_sha256.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/prf_sha256.c
+
+bearssl/ssl/prf_sha384.o: third_party/bearssl/src/ssl/prf_sha384.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/prf_sha384.c
+
+bearssl/ssl/ssl_io.o: third_party/bearssl/src/ssl/ssl_io.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_io.c
+
+bearssl/ssl/prf.o: third_party/bearssl/src/ssl/prf.c
+	@Makedir bearssl/ssl ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/prf.c
+
+bearssl/symcipher/aes_ct_ctr.o: third_party/bearssl/src/symcipher/aes_ct_ctr.c
+	@Makedir bearssl/symcipher ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/symcipher/aes_ct_ctr.c
+
+bearssl/symcipher/aes_ct_enc.o: third_party/bearssl/src/symcipher/aes_ct_enc.c
+	@Makedir bearssl/symcipher ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/symcipher/aes_ct_enc.c
+
+bearssl/symcipher/aes_ct.o: third_party/bearssl/src/symcipher/aes_ct.c
+	@Makedir bearssl/symcipher ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/symcipher/aes_ct.c
+
+bearssl/symcipher/chacha20_ct.o: third_party/bearssl/src/symcipher/chacha20_ct.c
+	@Makedir bearssl/symcipher ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/symcipher/chacha20_ct.c
+
+bearssl/symcipher/poly1305_ctmul32.o: third_party/bearssl/src/symcipher/poly1305_ctmul32.c
+	@Makedir bearssl/symcipher ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/symcipher/poly1305_ctmul32.c
+
+bearssl/codec/ccopy.o: third_party/bearssl/src/codec/ccopy.c
+	@Makedir bearssl/codec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/codec/ccopy.c
+
+bearssl/codec/dec32be.o: third_party/bearssl/src/codec/dec32be.c
+	@Makedir bearssl/codec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/codec/dec32be.c
+
+bearssl/codec/enc32be.o: third_party/bearssl/src/codec/enc32be.c
+	@Makedir bearssl/codec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/codec/enc32be.c
+
+bearssl/codec/dec64be.o: third_party/bearssl/src/codec/dec64be.c
+	@Makedir bearssl/codec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/codec/dec64be.c
+
+bearssl/codec/enc64be.o: third_party/bearssl/src/codec/enc64be.c
+	@Makedir bearssl/codec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/codec/enc64be.c
+
+bearssl/rand/hmac_drbg.o: third_party/bearssl/src/rand/hmac_drbg.c
+	@Makedir bearssl/rand ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/rand/hmac_drbg.c
+
+bearssl/rsa/rsa_i15_pub.o: third_party/bearssl/src/rsa/rsa_i15_pub.c
+	@Makedir bearssl/rsa ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/rsa/rsa_i15_pub.c
+
+bearssl/rsa/rsa_i15_pkcs1_vrfy.o: third_party/bearssl/src/rsa/rsa_i15_pkcs1_vrfy.c
+	@Makedir bearssl/rsa ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/rsa/rsa_i15_pkcs1_vrfy.c
+
+bearssl/rsa/rsa_pkcs1_sig_unpad.o: third_party/bearssl/src/rsa/rsa_pkcs1_sig_unpad.c
+	@Makedir bearssl/rsa ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/rsa/rsa_pkcs1_sig_unpad.c
+
+bearssl/x509/x509_decoder.o: third_party/bearssl/src/x509/x509_decoder.c
+	@Makedir bearssl/x509 ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_decoder.c
+
+bearssl/x509/x509_minimal.o: third_party/bearssl/src/x509/x509_minimal.c
+	@Makedir bearssl/x509 ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_minimal.c
+
+bearssl/x509/asn1enc.o: third_party/bearssl/src/x509/asn1enc.c
+	@Makedir bearssl/x509 ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/asn1enc.c
+
+bearssl/ec/ec_p256_m15.o: third_party/bearssl/src/ec/ec_p256_m15.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_p256_m15.c
+
+bearssl/ec/ec_all_m15.o: third_party/bearssl/src/ec/ec_all_m15.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_all_m15.c
+
+bearssl/ec/ec_prime_i15.o: third_party/bearssl/src/ec/ec_prime_i15.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_prime_i15.c
+
+bearssl/ec/ec_c25519_m15.o: third_party/bearssl/src/ec/ec_c25519_m15.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_c25519_m15.c
+
+bearssl/ec/ec_secp256r1.o: third_party/bearssl/src/ec/ec_secp256r1.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_secp256r1.c
+
+bearssl/ec/ec_secp384r1.o: third_party/bearssl/src/ec/ec_secp384r1.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_secp384r1.c
+
+bearssl/ec/ec_secp521r1.o: third_party/bearssl/src/ec/ec_secp521r1.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_secp521r1.c
+
+bearssl/ec/ecdsa_i15_bits.o: third_party/bearssl/src/ec/ecdsa_i15_bits.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ecdsa_i15_bits.c
+
+bearssl/ec/ecdsa_i15_vrfy_asn1.o: third_party/bearssl/src/ec/ecdsa_i15_vrfy_asn1.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ecdsa_i15_vrfy_asn1.c
+
+bearssl/ec/ecdsa_i15_vrfy_raw.o: third_party/bearssl/src/ec/ecdsa_i15_vrfy_raw.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ecdsa_i15_vrfy_raw.c
+
+bearssl/ec/ecdsa_atr.o: third_party/bearssl/src/ec/ecdsa_atr.c
+	@Makedir bearssl/ec ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ecdsa_atr.c
+
+bearssl/hash/ghash_ctmul32.o: third_party/bearssl/src/hash/ghash_ctmul32.c
+	@Makedir bearssl/hash ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/hash/ghash_ctmul32.c
+
+bearssl/hash/sha2small.o: third_party/bearssl/src/hash/sha2small.c
+	@Makedir bearssl/hash ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/hash/sha2small.c
+
+bearssl/hash/sha2big.o: third_party/bearssl/src/hash/sha2big.c
+	@Makedir bearssl/hash ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/hash/sha2big.c
+
+bearssl/hash/multihash.o: third_party/bearssl/src/hash/multihash.c
+	@Makedir bearssl/hash ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/hash/multihash.c
+
+bearssl/hash/sha1.o: third_party/bearssl/src/hash/sha1.c
+	@Makedir bearssl/hash ALL
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ third_party/bearssl/src/hash/sha1.c
+
+clean:
+	-$(RM) $(STAMP)
+	-$(RM) bearssl/mac/\#?.o
+	-$(RM) bearssl/int/\#?.o
+	-$(RM) bearssl/ssl/\#?.o
+	-$(RM) bearssl/symcipher/\#?.o
+	-$(RM) bearssl/codec/\#?.o
+	-$(RM) bearssl/rand/\#?.o
+	-$(RM) bearssl/rsa/\#?.o
+	-$(RM) bearssl/x509/\#?.o
+	-$(RM) bearssl/ec/\#?.o
+	-$(RM) bearssl/hash/\#?.o

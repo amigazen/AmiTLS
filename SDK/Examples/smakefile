@@ -1,0 +1,30 @@
+#
+# SDK/Examples/smakefile - build ATlsTest (amitls.library smoke harness)
+#
+# Prerequisite: smake install + smake headers in Source/lib_source
+#
+
+CC      = sc
+LD      = slink
+RM      = delete force quiet
+
+TARGET  = ATlsTest
+
+all: $(TARGET)
+
+rebuild: clean all
+
+$(TARGET): ATlsTest.o libbases.o smakefile.wth
+	$(LD) WITH smakefile.wth
+
+ATlsTest.o: ATlsTest.c
+	$(CC) ATlsTest.c to ATlsTest.o
+
+libbases.o: libbases.c
+	$(CC) libbases.c to libbases.o
+
+clean:
+	-$(RM) ATlsTest.o
+	-$(RM) libbases.o
+	-$(RM) $(TARGET)
+	-$(RM) $(TARGET).info

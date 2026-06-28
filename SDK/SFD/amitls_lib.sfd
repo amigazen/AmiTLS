@@ -1,0 +1,54 @@
+==id $VER: amitls_lib.sfd 1.0 (23.6.2026)
+*"amitls.library"
+==base _TlsBase
+==basetype struct Library *
+==libname amitls.library
+==include <exec/types.h>
+==include <libraries/amitls.h>
+==bias 30
+==public
+==version 1
+*
+* Tier 0 - Per-process TLS defaults (after OpenLibrary only).
+*
+* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned
+* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase).
+*
+LONG TlsBaseTagList(struct TagItem *tags) (a0)
+LONG TlsError() ()
+STRPTR TlsGetErrorString(LONG code) (d0)
+*
+* Tier 1 - Per-task TLS runtime (call once per Exec task using TLS I/O).
+* Caller must OpenLibrary("bsdsocket.library") and pass the base here.
+*
+LONG TlsTaskAttach(struct Library *SocketBase, APTR errno_ptr) (a0,a1)
+VOID TlsTaskDetach() ()
+*
+* Tier 1 - TlsContext (verify policy, optional CA overrides).
+*
+struct TlsContext *NewTlsContext(struct TagItem *tags) (a0)
+VOID DisposeTlsContext(struct TlsContext *ctx) (a0)
+LONG SetTlsContextAttrsA(struct TlsContext *ctx, struct TagItem *tags) (a0,a1)
+*
+* Tier 2 - TlsConnection (attach TLS to an existing TCP socket).
+*
+struct TlsConnection *NewTlsConnection(struct TlsContext *ctx) (a0)
+VOID DisposeTlsConnection(struct TlsConnection *conn) (a0)
+LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock, STRPTR hostname, struct TagItem *tags) (a0,d0,a1,a2)
+LONG TlsRead(struct TlsConnection *conn, APTR buffer, ULONG buflen, ULONG timeout_secs) (a0,a1,d0,d1)
+LONG TlsWrite(struct TlsConnection *conn, APTR buffer, ULONG len) (a0,a1,d0)
+ULONG TlsPending(struct TlsConnection *conn) (a0)
+LONG TlsShutdown(struct TlsConnection *conn) (a0)
+LONG TlsGetLastError(struct TlsConnection *conn) (a0)
+LONG TlsGetCertVerifyDetail(struct TlsConnection *conn) (a0)
+LONG TlsGetPeerCert(struct TlsConnection *conn, struct TlsPeerCert *cert) (a0,a1)
+VOID TlsPeerCertFree(struct TlsPeerCert *cert) (a0)
+*
+* Tier 3 - Trust store.  Prefer ATBT/ATSA_CA_BUNDLE_PATH tags; no implicit
+* default path.  TlsLoadCABundle() sets the library-base path (same as ATBT).
+*
+LONG TlsLoadCABundle(STRPTR path) (a0)
+LONG TlsAddTrustedCert(APTR data, ULONG len, ULONG format) (a0,d0,d1)
+VOID TlsClearTrustedCerts() ()
+LONG TlsHandshake(struct TlsConnection *conn, ULONG timeout_secs) (a0,d0)
+==end

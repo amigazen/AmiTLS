@@ -1,0 +1,156 @@
+#
+# Source/lib_source/smakefile - amitls.library wrapper + link (VBCC)
+#
+# BearSSL third_party objects live in smakefile.bearssl (build once, rarely touched).
+#
+#   smake              wrapper .o + link (incremental BearSSL via sub-smake)
+#   smake bearssl      BearSSL objects only
+#   smake install      copy to LIBS:
+#   smake rebuild      clean wrapper + library, rebuild all
+#   smake rebuild-all  clean wrapper + BearSSL + library
+#
+# Link must include bearssl/int/i15_rshift.o and bearssl/ec/ecdsa_atr.o
+# (ECDSA certificate chains).  If vlink reports undefined _br_i15_rshift or
+# _br_ecdsa_asn1_to_raw, run smake rebuild-all — 
+#
+
+CC      = vc
+CFLAGS  = -c99 -O2 -+ -DVBCC -c
+LDFLAGS = -nostdlib -lamiga -lvc
+LD      = $(CC) $(LDFLAGS) -o
+RM      = delete force quiet
+
+TARGET  = amitls.library
+BUILD_H = private/atls_build.h
+BEARSSL_MK   = smakefile.bearssl
+
+INCL    = -I. -I../include -Iinclude
+BRINCL  = $(INCL) -Ibearssl_port -Ithird_party/bearssl/inc -Ithird_party/bearssl/src -DBR_LOMUL -DBR_USE_UNIX_TIME=0 -DBR_USE_WIN32_TIME=0
+SCNET  = -Inetinclude: -Inetinclude
+
+# Amiga wrapper / port (changes often)
+LIB_OBJS = StartUp.o LibInit.o libbases.o amitls_funcs.o \
+           atls_alloc.o atls_error.o atls_task.o atls_socket.o \
+           atls_x509_insecure.o atls_x509_engine.o atls_trust.o \
+           atls_bearssl.o atls_prng.o atls_string.o \
+           atls_vbcc_div.o
+
+# Linked from bearssl/ tree; built by smakefile.bearssl (must match that file)
+BROBJS = bearssl/mac/hmac.o \
+         bearssl/int/i32_div32.o \
+         bearssl/int/i15_montmul.o bearssl/int/i15_iszero.o \
+         bearssl/int/i15_modpow2.o bearssl/int/i15_tmont.o \
+         bearssl/int/i15_ninv15.o bearssl/int/i15_add.o \
+         bearssl/int/i15_sub.o bearssl/int/i15_fmont.o \
+         bearssl/int/i15_modpow.o bearssl/int/i15_decmod.o \
+         bearssl/int/i15_muladd.o bearssl/int/i15_encode.o \
+         bearssl/int/i15_decode.o bearssl/int/i15_bitlen.o \
+         bearssl/int/i15_rshift.o \
+         bearssl/ssl/ssl_rec_gcm.o bearssl/ssl/ssl_rec_chapol.o bearssl/ssl/ssl_engine.o \
+         bearssl/ssl/ssl_client.o bearssl/ssl/ssl_hs_client.o \
+         bearssl/ssl/prf_sha256.o bearssl/ssl/prf_sha384.o bearssl/ssl/ssl_io.o bearssl/ssl/prf.o \
+         bearssl/symcipher/aes_ct_ctr.o bearssl/symcipher/aes_ct_enc.o \
+         bearssl/symcipher/aes_ct.o bearssl/symcipher/chacha20_ct.o \
+         bearssl/symcipher/poly1305_ctmul32.o          bearssl/codec/ccopy.o \
+         bearssl/codec/dec32be.o bearssl/codec/enc32be.o \
+         bearssl/codec/dec64be.o bearssl/codec/enc64be.o \
+         bearssl/rand/hmac_drbg.o bearssl/rsa/rsa_i15_pub.o \
+         bearssl/rsa/rsa_i15_pkcs1_vrfy.o bearssl/rsa/rsa_pkcs1_sig_unpad.o \
+         bearssl/x509/x509_decoder.o bearssl/x509/x509_minimal.o \
+         bearssl/x509/asn1enc.o \
+         bearssl/ec/ec_p256_m15.o \
+         bearssl/ec/ec_all_m15.o bearssl/ec/ec_prime_i15.o \
+         bearssl/ec/ec_c25519_m15.o \
+         bearssl/ec/ec_secp256r1.o bearssl/ec/ec_secp384r1.o \
+         bearssl/ec/ec_secp521r1.o \
+         bearssl/ec/ecdsa_i15_bits.o \
+         bearssl/ec/ecdsa_i15_vrfy_asn1.o bearssl/ec/ecdsa_i15_vrfy_raw.o \
+         bearssl/ec/ecdsa_atr.o \
+         bearssl/hash/ghash_ctmul32.o bearssl/hash/sha2small.o \
+         bearssl/hash/sha2big.o bearssl/hash/multihash.o bearssl/hash/sha1.o
+
+all: $(TARGET)
+
+rebuild: clean all
+
+rebuild-all:
+	smake -f $(BEARSSL_MK) clean
+	smake rebuild
+
+# Build or refresh BearSSL .o (sub-smake is incremental; no global dirs dependency)
+bearssl:
+	smake -f $(BEARSSL_MK)
+
+# Rebuild vendored BearSSL .o when smakefile.bearssl changes or objects are missing.
+$(BROBJS): smakefile.bearssl
+	smake -f $(BEARSSL_MK)
+
+$(TARGET): $(LIB_OBJS) $(BUILD_H) $(BROBJS)
+	$(LD) $(TARGET) $(LIB_OBJS) $(BROBJS)
+
+StartUp.o: StartUp.c $(BUILD_H) amitls_funcs.h compiler.h
+	$(CC) $(CFLAGS) $(INCL) -o=$@ StartUp.c
+
+LibInit.o: LibInit.c $(BUILD_H) private/atls_internal.h compiler.h
+	$(CC) $(CFLAGS) $(INCL) -o=$@ LibInit.c
+
+libbases.o: libbases.c
+	$(CC) $(CFLAGS) $(INCL) -o=$@ libbases.c
+
+amitls_funcs.o: amitls_funcs.c amitls_funcs.h private/atls_internal.h
+	$(CC) $(CFLAGS) $(INCL) -o=$@ amitls_funcs.c
+
+atls_alloc.o: atls_alloc.c private/atls_internal.h
+	$(CC) $(CFLAGS) $(INCL) -o=$@ atls_alloc.c
+
+atls_error.o: atls_error.c private/atls_internal.h
+	$(CC) $(CFLAGS) $(INCL) -o=$@ atls_error.c
+
+atls_task.o: atls_task.c private/atls_internal.h
+	$(CC) $(CFLAGS) $(INCL) $(SCNET) -o=$@ atls_task.c
+
+atls_socket.o: atls_socket.c atls_socket.h
+	$(CC) $(CFLAGS) $(INCL) $(SCNET) -o=$@ atls_socket.c
+
+atls_x509_insecure.o: atls_x509_insecure.c atls_x509_insecure.h
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ atls_x509_insecure.c
+
+atls_x509_engine.o: atls_x509_engine.c atls_x509_engine.h private/atls_internal.h private/atls_build.h
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ atls_x509_engine.c
+
+atls_trust.o: atls_trust.c atls_trust.h private/atls_internal.h
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ atls_trust.c
+
+atls_bearssl.o: atls_bearssl.c private/atls_internal.h private/atls_bearssl.h
+	$(CC) $(CFLAGS) $(BRINCL) $(SCNET) -o=$@ atls_bearssl.c
+
+atls_prng.o: bearssl_port/atls_prng.c
+	$(CC) $(CFLAGS) $(BRINCL) -o=$@ bearssl_port/atls_prng.c
+
+atls_string.o: bearssl_port/atls_string.c
+	$(CC) $(CFLAGS) $(INCL) -o=$@ bearssl_port/atls_string.c
+
+atls_vbcc_div.o: bearssl_port/atls_vbcc_div.c
+	$(CC) $(CFLAGS) $(INCL) -o=$@ bearssl_port/atls_vbcc_div.c
+
+release:
+	Copy $(TARGET) //SYS/Libs/$(TARGET)
+
+install:
+	Copy $(TARGET) LIBS:$(TARGET)
+	avail flush
+
+headers:
+	Copy clone /include/libraries/amitls.h //SDK/Include_h/libraries/amitls.h
+	Copy clone /include/proto/atls.h //SDK/Include_h/proto/atls.h
+	Copy clone /include/clib/atls_protos.h //SDK/Include_h/clib/atls_protos.h
+	Copy clone /include/pragmas/atls_pragmas.h //SDK/Include_h/pragmas/atls_protos.h
+
+clean:
+	-$(RM) \#?.o
+	-$(RM) $(TARGET)
+	-$(RM) $(TARGET).info
+
+clean-all:
+	smake -f $(BEARSSL_MK) clean
+	smake clean

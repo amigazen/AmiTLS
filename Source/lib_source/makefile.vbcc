@@ -1,0 +1,31 @@
+#
+# makefile.vbcc - wrapper for amitls.library (VBCC / make users)
+#
+# The full BearSSL object list lives in smakefile + smakefile.bearssl.
+# An older hand-maintained object list here caused link failures:
+#   undefined _br_i15_rshift, _br_ecdsa_asn1_to_raw
+# (ECDSA cert verify for sites like amigaworld.net).
+#
+# Always build with smake from lib_source:
+#   smake
+#   smake rebuild-all
+#   smake install
+#
+
+all:
+	smake
+
+rebuild:
+	smake rebuild
+
+rebuild-all:
+	smake rebuild-all
+
+bearssl:
+	smake -f smakefile.bearssl
+
+install:
+	smake install
+
+clean:
+	smake clean-all
