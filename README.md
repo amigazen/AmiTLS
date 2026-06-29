@@ -19,7 +19,7 @@ amihttp.library will automatically inherit HTTPS support from amitls.library
 
 **amigazen project** is using modern software development tools and methods to update and rerelease classic Amiga open source software. Projects include a new AWeb, a new Amiga Python 2, and the ToolKit project — a universal SDK for Amiga development. All *amigazen project* releases are guaranteed to build against the ToolKit standard so that anyone can download and begin contributing straightaway without having to tailor the toolchain for their own setup.
 
-AmiTLS is an original work of the amigazen project. Amigazen additions are available under the MIT License or the BSD 2-Clause License, at your option (see [LICENSE.md](LICENSE.md)). BearSSL third-party code is under the MIT License in `Source/lib_source/third_party/bearssl/`.
+AmiTLS is an original work of the amigazen project. amigazen project copyrighted code here in this project available under the MIT License or the BSD 2-Clause License, at your option (see [LICENSE.md](LICENSE.md)). BearSSL third-party code is under the MIT License in `Source/lib_source/third_party/bearssl/`.
 
 The amigazen project philosophy is based on openness:
 
@@ -59,7 +59,7 @@ required.
 | **Amiga-native API** | Opaque handles, TagItem configuration, SFD/LVO stability |
 | **Reuse** | One TLS implementation for amihttp, CLI tools, and custom protocols |
 | **Separation of concerns** | TLS record layer in the library; TCP, HTTP, UI elsewhere |
-| **Testability** | `ATlsTest` smoke harness exercises the API without a browser |
+| **Testability** | `ATlsTest` smoke test harness exercises the API without a browser |
 
 ## Relationship to amihttp.library
 
@@ -101,7 +101,7 @@ configuration, and tiered scope (process → task → connection).
 
 ```c
 struct TagItem basetags[] = {
-    { ATBT_CA_BUNDLE_PATH, (ULONG)"AmiSSL:cacert.pem" },
+    { ATBT_CA_BUNDLE_PATH, (ULONG)"cacert.pem" },
     { TAG_DONE, 0 }
 };
 
@@ -267,9 +267,9 @@ ATlsTest -verify -ca cacert.pem https://www.google.com
 Building amitls.library requires:
 
 - AmigaOS 3.2 or 4.1 target
-- NDK 3.2 headers on `include:`
-- Roadshow (or equivalent) `bsdsocket.library` headers on `netinclude:`
-- VBCC **and** SAS/C + smake + slink (ToolKit standard)
+- NDK 3.2 headers in `include:` path
+- Roadshow (or equivalent) `bsdsocket.library` headers in `netinclude:` path
+- VBCC **and** SAS/C smake + slink (ToolKit standard)
 
 Runtime requirements for applications:
 
