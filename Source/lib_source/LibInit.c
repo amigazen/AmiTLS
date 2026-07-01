@@ -25,7 +25,39 @@
 #include "compiler.h"
 
 #define ATLSLIBNAME "amitls"
-#define ATLSLIBVER  " 1.0 (23.6.2026)"
+
+#if (ATLS_BUILD_OPT_LVL) == 3
+#define ATLS_OPT_TAG "O3"
+#elif (ATLS_BUILD_OPT_LVL) == 1
+#define ATLS_OPT_TAG "O1"
+#else
+#define ATLS_OPT_TAG "O2"
+#endif
+
+#if (ATLS_BUILD_BR_OPT_LVL) == 3
+#define ATLS_BR_OPT_TAG "O3"
+#elif (ATLS_BUILD_BR_OPT_LVL) == 1
+#define ATLS_BR_OPT_TAG "O1"
+#else
+#define ATLS_BR_OPT_TAG "O2"
+#endif
+
+#if (ATLS_BUILD_BR_X509_OPT_LVL) == 3
+#define ATLS_BR_X509_OPT_TAG "O3"
+#elif (ATLS_BUILD_BR_X509_OPT_LVL) == 1
+#define ATLS_BR_X509_OPT_TAG "O1"
+#else
+#define ATLS_BR_X509_OPT_TAG "O2"
+#endif
+
+#define ATLS_XSTR(x) ATLS_STR(x)
+#define ATLS_STR(x) #x
+#define ATLS_CPU_TAG_STR ATLS_XSTR(ATLS_BUILD_CPU)
+
+#define ATLS_BUILD_PROFILE " [" ATLS_CPU_TAG_STR "/" ATLS_OPT_TAG \
+    " br-" ATLS_BR_OPT_TAG "/x509-" ATLS_BR_X509_OPT_TAG "]"
+
+#define ATLSLIBVER  " 1.0 (23.6.2026)" ATLS_BUILD_PROFILE
 
 const char ATLS_LibName[] = ATLSLIBNAME ".library";
 const char ATLS_LibID[]   = ATLSLIBNAME ATLSLIBVER;

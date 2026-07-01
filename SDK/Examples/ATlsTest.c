@@ -21,6 +21,17 @@
  *   ATlsTest -verify -ca RAM:mozilla.pem example.com
  *       Live verified HTTPS using a real Mozilla-style CA bundle on disk.
  *
+ *   ATlsTest -bench-only
+ *       Benchmark PEM load, verify attach, and (with hostname) HTTPS handshake.
+ *       Uses lowlevel.library/ElapsedTime() (V40).  Library build profile is
+ *       printed from amitls.library IdString (cpu/opt/BearSSL levels).
+ *
+ *   ATlsTest -bench-only 5 example.com
+ *       Five handshake iterations; optional -ca for VERIFY_PEER timing.
+ *
+ *   ATlsTest -bench-only -ca testdata/cacert.pem -verify example.com
+ *       Handshake with certificate verification (same as -verify -ca).
+ *
  * Offline tests cover VERIFY_PEER without anchors, missing CA bundle I/O,
  * PEM trust load, deferred handshake (read before write), WANT_READ/WRITE
  * rc semantics, per-connection TlsGetLastError vs TlsError(), and dual
@@ -32,17 +43,18 @@
 
 #include <exec/types.h>
 #include <exec/memory.h>
-#include <devices/timer.h>
 #include <dos/dos.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include <libraries/amitls.h>
 #include <clib/compiler-specific.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
 #include <proto/atls.h>
+#include <proto/lowlevel.h>
 
 /* Must match private/atls_build.h ATLS_BR_EPOCH_DAYS (ATlsTest-only check). */
 #ifndef ATLS_TEST_BR_EPOCH_DAYS
@@ -118,14 +130,408 @@ static ULONG at_step_id;
 static int at_errno_slot;
 static BOOL at_quiet;
 static BOOL at_verbose;
+static BOOL at_bench_mode;
+static BOOL at_bench_only;
+static ULONG at_bench_iters;
 static BOOL at_test_socket_open;
 static STRPTR at_ca_path;
 static BOOL at_live_verify;
+
+/* lowlevel.library/ElapsedTime (V40) — see NDK Autodocs/lowlevel.doc */
+static struct EClockVal at_et_ctx;
+
+static BOOL at_file_exists(STRPTR path);
+static BOOL at_install_test_ca(VOID);
+static STRPTR at_test_ca_path(VOID);
+static VOID at_clear_base_ca_path(VOID);
+static BOOL at_ensure_task_attached(VOID);
+static BOOL at_ensure_test_socket(VOID);
+static struct TlsContext *at_new_context_verify_ca(ULONG verify, STRPTR ca_path);
+static LONG at_attach_socket(struct TlsConnection *conn, LONG sock, STRPTR hostname,
+    ULONG verify, BOOL nonblocking);
+static STRPTR at_normalize_host(STRPTR in, char *buf, ULONG buflen);
+static BOOL at_tcp_connect(STRPTR host, ULONG port, LONG *out_sock);
+static VOID at_dbg(STRPTR fmt, ...);
 
 static VOID
 at_flush(VOID)
 {
     Flush(Output());
+}
+
+static VOID
+at_et_init(VOID)
+{
+    if (LowLevelBase != NULL) {
+        return;
+    }
+    LowLevelBase = OpenLibrary((STRPTR)"lowlevel.library", 40);
+    if (LowLevelBase == NULL) {
+        return;
+    }
+    at_et_ctx.ev_hi = 0UL;
+    at_et_ctx.ev_lo = 0UL;
+    (void)ElapsedTime(&at_et_ctx);
+}
+
+static VOID
+at_et_fini(VOID)
+{
+    if (LowLevelBase != NULL) {
+        CloseLibrary(LowLevelBase);
+        LowLevelBase = NULL;
+    }
+}
+
+static VOID
+at_et_reset(VOID)
+{
+    if (LowLevelBase == NULL) {
+        return;
+    }
+    at_et_ctx.ev_hi = 0UL;
+    at_et_ctx.ev_lo = 0UL;
+    (void)ElapsedTime(&at_et_ctx);
+}
+
+static ULONG
+at_et_delta_ms(VOID)
+{
+    ULONG et;
+    ULONG sec;
+    ULONG frac;
+
+    if (LowLevelBase == NULL) {
+        return 0UL;
+    }
+    et = ElapsedTime(&at_et_ctx);
+    sec = (et >> 16) & 0xFFFFUL;
+    frac = et & 0xFFFFUL;
+    return (sec * 1000UL) + ((frac * 1000UL) / 65536UL);
+}
+
+static VOID
+at_bench_printf(STRPTR fmt, ...)
+{
+    char buf[512];
+    va_list ap;
+
+    va_start(ap, fmt);
+    vsprintf(buf, (const char *)fmt, ap);
+    va_end(ap);
+    Printf("%s", buf);
+    at_flush();
+}
+
+static VOID
+at_bench_report(STRPTR name, STRPTR host, ULONG iters, ULONG total_ms,
+    ULONG min_ms, ULONG max_ms)
+{
+    ULONG avg;
+    STRPTR host_label;
+
+    if (iters == 0UL) {
+        return;
+    }
+    host_label = host;
+    if (host_label == NULL || host_label[0] == '\0') {
+        host_label = (STRPTR)"(none)";
+    }
+    avg = (total_ms + (iters / 2UL)) / iters;
+    at_bench_printf(
+        "ATlsBench: %s host=%s iterations=%lu total_ms=%lu avg_ms=%lu min_ms=%lu max_ms=%lu\n",
+        name, (char *)host_label, (unsigned long)iters, (unsigned long)total_ms,
+        (unsigned long)avg, (unsigned long)min_ms, (unsigned long)max_ms);
+}
+
+static VOID
+at_bench_report_one(STRPTR name, ULONG ms, STRPTR detail)
+{
+    if (detail != NULL && detail[0] != '\0') {
+        at_bench_printf("ATlsBench: %s ms=%lu (%s)\n",
+            name, (unsigned long)ms, detail);
+    } else {
+        at_bench_printf("ATlsBench: %s ms=%lu\n",
+            name, (unsigned long)ms);
+    }
+}
+
+static STRPTR
+at_bench_resolve_ca(VOID)
+{
+    if (at_ca_path != NULL && at_ca_path[0] != '\0'
+        && at_file_exists(at_ca_path)) {
+        return at_ca_path;
+    }
+    if (at_file_exists((STRPTR)ATLS_TEST_CACERT_REL)) {
+        return (STRPTR)ATLS_TEST_CACERT_REL;
+    }
+    return at_test_ca_path();
+}
+
+static ULONG
+at_bench_ca_load_ms(STRPTR ca_path, BOOL cold)
+{
+    struct TlsContext *ctx;
+    ULONG ms;
+
+    if (ca_path == NULL || ca_path[0] == '\0') {
+        return 0UL;
+    }
+    if (cold) {
+        at_clear_base_ca_path();
+        TlsClearTrustedCerts();
+    }
+    if (!at_ensure_task_attached()) {
+        return 0UL;
+    }
+    at_et_reset();
+    ctx = at_new_context_verify_ca(ATSSL_VERIFY_PEER, ca_path);
+    ms = at_et_delta_ms();
+    if (ctx != NULL) {
+        DisposeTlsContext(ctx);
+    }
+    TlsTaskDetach();
+    return ms;
+}
+
+static ULONG
+at_bench_verify_attach_ms(STRPTR ca_path)
+{
+    struct TlsContext *ctx;
+    struct TlsConnection *conn;
+    ULONG ms;
+    LONG rc;
+
+    if (ca_path == NULL || ca_path[0] == '\0') {
+        return 0UL;
+    }
+    if (!at_ensure_task_attached()) {
+        return 0UL;
+    }
+    ctx = at_new_context_verify_ca(ATSSL_VERIFY_PEER, ca_path);
+    if (ctx == NULL) {
+        TlsTaskDetach();
+        return 0UL;
+    }
+    conn = NewTlsConnection(ctx);
+    if (conn == NULL) {
+        DisposeTlsContext(ctx);
+        TlsTaskDetach();
+        return 0UL;
+    }
+    at_et_reset();
+    rc = at_attach_socket(conn, 1, (STRPTR)"bench.local",
+        ATSSL_VERIFY_PEER, FALSE);
+    ms = at_et_delta_ms();
+    if (rc != 0) {
+        at_dbg("bench verify attach rc=%ld", (long)rc);
+    }
+    DisposeTlsConnection(conn);
+    DisposeTlsContext(ctx);
+    TlsTaskDetach();
+    return ms;
+}
+
+/*
+ * Time from TlsAttachSocket through first TlsWrite that completes the TLS
+ * handshake (dummy GET).  Returns elapsed ms; sets *out_rc to TlsWrite rc.
+ */
+static ULONG
+at_bench_handshake_ms(STRPTR host_arg, ULONG verify, STRPTR ca_path, LONG *out_rc)
+{
+    struct TlsContext *ctx;
+    struct TlsConnection *conn;
+    char hostbuf[256];
+    STRPTR host;
+    char req[256];
+    LONG sock;
+    LONG rc;
+    ULONG ms;
+
+    if (out_rc != NULL) {
+        *out_rc = ERROR_TLS_IO;
+    }
+    host = at_normalize_host(host_arg, hostbuf, (ULONG)sizeof(hostbuf));
+    if (host[0] == '\0') {
+        return 0UL;
+    }
+    if (verify != ATSSL_VERIFY_NONE
+        && (ca_path == NULL || ca_path[0] == '\0' || !at_file_exists(ca_path))) {
+        return 0UL;
+    }
+    if (!at_ensure_test_socket()) {
+        return 0UL;
+    }
+    if (!at_tcp_connect(host, ATLS_TEST_HTTPS_PORT, &sock)) {
+        return 0UL;
+    }
+    if (!at_ensure_task_attached()) {
+        CloseSocket(sock);
+        return 0UL;
+    }
+
+    ctx = NULL;
+    if (ca_path != NULL && ca_path[0] != '\0') {
+        ctx = at_new_context_verify_ca(verify, ca_path);
+        if (ctx == NULL) {
+            CloseSocket(sock);
+            TlsTaskDetach();
+            return 0UL;
+        }
+        conn = NewTlsConnection(ctx);
+    } else {
+        conn = NewTlsConnection(NULL);
+    }
+    if (conn == NULL) {
+        if (ctx != NULL) {
+            DisposeTlsContext(ctx);
+        }
+        CloseSocket(sock);
+        TlsTaskDetach();
+        return 0UL;
+    }
+
+    rc = at_attach_socket(conn, sock, host, verify, FALSE);
+    if (rc != 0) {
+        CloseSocket(sock);
+        DisposeTlsConnection(conn);
+        if (ctx != NULL) {
+            DisposeTlsContext(ctx);
+        }
+        TlsTaskDetach();
+        if (out_rc != NULL) {
+            *out_rc = rc;
+        }
+        return 0UL;
+    }
+
+    sprintf(req, "GET / HTTP/1.0\r\nHost: %s\r\n\r\n", (char *)host);
+    at_et_reset();
+    rc = TlsWrite(conn, (APTR)req, (ULONG)strlen(req));
+    ms = at_et_delta_ms();
+
+    TlsShutdown(conn);
+    CloseSocket(sock);
+    DisposeTlsConnection(conn);
+    if (ctx != NULL) {
+        DisposeTlsContext(ctx);
+    }
+    TlsTaskDetach();
+
+    if (out_rc != NULL) {
+        *out_rc = rc;
+    }
+    return ms;
+}
+
+static VOID
+at_bench_handshake_loop(STRPTR name, STRPTR host, ULONG verify, STRPTR ca_path)
+{
+    ULONG i;
+    ULONG total;
+    ULONG min_ms;
+    ULONG max_ms;
+    ULONG ms;
+    LONG rc;
+    ULONG ok;
+
+    total = 0UL;
+    min_ms = 0xFFFFFFFFUL;
+    max_ms = 0UL;
+    ok = 0UL;
+    for (i = 0; i < at_bench_iters; i++) {
+        rc = 0;
+        ms = at_bench_handshake_ms(host, verify, ca_path, &rc);
+        if (ms == 0UL && !at_tls_ok(rc)) {
+            at_bench_printf("ATlsBench: %s host=%s iter=%lu failed rc=%ld\n",
+                name, (char *)host, (unsigned long)(i + 1UL), (long)rc);
+            continue;
+        }
+        ok++;
+        total += ms;
+        if (ms < min_ms) {
+            min_ms = ms;
+        }
+        if (ms > max_ms) {
+            max_ms = ms;
+        }
+    }
+    if (ok == 0UL) {
+        at_bench_printf("ATlsBench: %s host=%s FAILED (no successful iterations)\n",
+            name, (char *)host);
+        return;
+    }
+    at_bench_report(name, host, ok, total, min_ms, max_ms);
+}
+
+static VOID
+at_run_bench(STRPTR live_host)
+{
+    STRPTR ca_path;
+    ULONG ms;
+    char detail[160];
+    char hostbuf[256];
+    STRPTR host;
+
+    at_et_init();
+    if (LowLevelBase == NULL) {
+        at_bench_printf("ATlsBench: lowlevel.library not available (need V40+)\n");
+        return;
+    }
+
+    if (TlsBase != NULL && TlsBase->lib_IdString != NULL) {
+        at_bench_printf("ATlsBench: library=%s\n", TlsBase->lib_IdString);
+    } else {
+        at_bench_printf("ATlsBench: library=(unknown)\n");
+    }
+
+    if (!at_install_test_ca()) {
+        at_bench_printf("ATlsBench: (test CA install to RAM: failed; try testdata/)\n");
+    }
+
+    ca_path = at_bench_resolve_ca();
+    if (ca_path != NULL) {
+        sprintf(detail, "cold ca=%s", (char *)ca_path);
+        ms = at_bench_ca_load_ms(ca_path, TRUE);
+        at_bench_report_one((STRPTR)"ca_bundle_load_cold", ms, (STRPTR)detail);
+
+        sprintf(detail, "warm ca=%s", (char *)ca_path);
+        ms = at_bench_ca_load_ms(ca_path, FALSE);
+        at_bench_report_one((STRPTR)"ca_bundle_load_warm", ms, (STRPTR)detail);
+
+        sprintf(detail, "ca=%s", (char *)ca_path);
+        ms = at_bench_verify_attach_ms(ca_path);
+        at_bench_report_one((STRPTR)"verify_peer_attach", ms, (STRPTR)detail);
+    } else {
+        at_bench_printf("ATlsBench: (skip CA benchmarks; no PEM bundle found)\n");
+    }
+
+    if (live_host != NULL && live_host[0] != '\0') {
+        host = at_normalize_host(live_host, hostbuf, (ULONG)sizeof(hostbuf));
+        if (host[0] == '\0') {
+            at_bench_printf("ATlsBench: (skip live handshake; invalid host)\n");
+        } else {
+            at_bench_printf("ATlsBench: host=%s iterations=%lu\n",
+                (char *)host, (unsigned long)at_bench_iters);
+            at_bench_handshake_loop((STRPTR)"handshake_verify_none",
+                host, ATSSL_VERIFY_NONE, NULL);
+            if (at_live_verify && ca_path != NULL) {
+                sprintf(detail, "host=%s ca=%s", (char *)host, (char *)ca_path);
+                at_bench_printf("ATlsBench: handshake_verify_peer (%s)\n", detail);
+                at_bench_handshake_loop((STRPTR)"handshake_verify_peer",
+                    host, ATSSL_VERIFY_PEER, ca_path);
+            } else if (ca_path != NULL) {
+                at_bench_printf(
+                    "ATlsBench: (skip handshake_verify_peer; use -verify -ca)\n");
+            }
+        }
+    } else {
+        at_bench_printf(
+            "ATlsBench: (skip live handshake; pass hostname on command line)\n");
+    }
+
+    at_et_fini();
 }
 
 static VOID
@@ -1749,6 +2155,9 @@ main(int argc, char **argv)
     at_step_id = 0;
     at_quiet = FALSE;
     at_verbose = FALSE;
+    at_bench_mode = FALSE;
+    at_bench_only = FALSE;
+    at_bench_iters = 3UL;
     at_ca_path = NULL;
     at_live_verify = FALSE;
     live_host = NULL;
@@ -1760,6 +2169,21 @@ main(int argc, char **argv)
         } else if (argv[i] != NULL && strcmp(argv[i], "-v") == 0) {
             at_verbose = TRUE;
             at_quiet = FALSE;
+        } else if (argv[i] != NULL && strcmp(argv[i], "-bench-only") == 0) {
+            at_bench_mode = TRUE;
+            at_bench_only = TRUE;
+        } else if (argv[i] != NULL && strcmp(argv[i], "-bench") == 0) {
+            at_bench_mode = TRUE;
+            if (i + 1 < argc && argv[i + 1] != NULL
+                && argv[i + 1][0] >= '0' && argv[i + 1][0] <= '9') {
+                ULONG n;
+
+                n = (ULONG)strtoul(argv[i + 1], NULL, 10);
+                if (n > 0UL) {
+                    at_bench_iters = n;
+                    i++;
+                }
+            }
         } else if (argv[i] != NULL && strcmp(argv[i], "-verify") == 0) {
             at_live_verify = TRUE;
         } else if (argv[i] != NULL && strcmp(argv[i], "-ca") == 0) {
@@ -1776,7 +2200,7 @@ main(int argc, char **argv)
         }
     }
 
-    if (!at_quiet) {
+    if (!at_quiet && !at_bench_only) {
         at_printf("ATlsTest: amitls.library smoke harness%s\n",
             at_verbose ? (STRPTR)" (verbose)" : (STRPTR)"");
     }
@@ -1785,6 +2209,15 @@ main(int argc, char **argv)
         at_printf("ATlsTest: %lu passed, %lu failed (library missing)\n",
             at_pass, at_fail);
         return 20;
+    }
+
+    if (at_bench_mode) {
+        at_run_bench(live_host);
+    }
+
+    if (at_bench_only) {
+        at_close_libs();
+        return 0;
     }
 
     at_run_offline();

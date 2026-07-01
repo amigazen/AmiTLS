@@ -4,9 +4,9 @@
  *
  * bearssl_types.h - Fixed-width types for BearSSL on Amiga compilers
  *
- * C99 (VBCC -c99): native unsigned long long / long long for uint64_t.
- * C++ (SAS/C CXXSRC): AtlsU64 class in atls_u64.hpp.
- * C89 SAS/C: 8/32-bit Amiga typedef macros only; uint64_t needs C99 or C++.
+ * C99 / VBCC (m68k-amigaos, 0.9h+ default): unsigned long long for uint64_t.
+ * VBCC may not define __STDC_VERSION__ unless -c99 is passed; __VBCC__ is
+ * enough to select the 64-bit integer path.  C++ (SAS/C CXXSRC): AtlsU64.
  */
 
 #ifndef ATLS_BEARSSL_TYPES_H
@@ -28,7 +28,8 @@
 #define int64_t AtlsS64
 #endif
 
-#elif defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#elif (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) \
+    || defined(__VBCC__)
 
 typedef unsigned char      uint8_t;
 typedef signed char        int8_t;

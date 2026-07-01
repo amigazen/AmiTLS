@@ -25,4 +25,21 @@
 #define ATLS_BR_EPOCH_STR  "722450"
 #define ATLS_SUITE_COUNT   3
 
+/*
+ * Build profile (override via smakefile -D on the compiler command line).
+ * ATlsTest -bench prints the library IdString which embeds these values.
+ */
+#ifndef ATLS_BUILD_CPU
+#define ATLS_BUILD_CPU        68020
+#endif
+#ifndef ATLS_BUILD_OPT_LVL
+#define ATLS_BUILD_OPT_LVL    2
+#endif
+#ifndef ATLS_BUILD_BR_OPT_LVL
+#define ATLS_BUILD_BR_OPT_LVL 2
+#endif
+#ifndef ATLS_BUILD_BR_X509_OPT_LVL
+#define ATLS_BUILD_BR_X509_OPT_LVL 1
+#endif
+
 #endif /* ATLS_PRIVATE_ATLS_BUILD_H */

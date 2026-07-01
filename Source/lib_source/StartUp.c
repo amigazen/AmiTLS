@@ -44,7 +44,7 @@ struct AmiTlsBase * __ASM__ __SAVE_DS__ InitLib(
     __REG__(d0, struct AmiTlsBase *base));
 struct AmiTlsBase * __ASM__ __SAVE_DS__ OpenLib(
     __REG__(a6, struct AmiTlsBase *base));
-#ifdef VBCC
+#ifdef __VBCC__
 SEGLISTPTR __ASM__ __SAVE_DS__ CloseLib(
     __REG__(a6, struct AmiTlsBase *base));
 SEGLISTPTR __ASM__ __SAVE_DS__ ExpungeLib(
@@ -149,7 +149,7 @@ struct AmiTlsBase * __ASM__ __SAVE_DS__ OpenLib(__REG__(a6, struct AmiTlsBase *b
     return base;
 }
 
-#ifdef VBCC
+#ifdef __VBCC__
 SEGLISTPTR __ASM__ __SAVE_DS__ CloseLib(__REG__(a6, struct AmiTlsBase *base))
 #else
 BPTR __ASM__ __SAVE_DS__ CloseLib(__REG__(a6, struct AmiTlsBase *base))
@@ -166,7 +166,7 @@ BPTR __ASM__ __SAVE_DS__ CloseLib(__REG__(a6, struct AmiTlsBase *base))
     return 0;
 }
 
-#ifdef VBCC
+#ifdef __VBCC__
 SEGLISTPTR __ASM__ __SAVE_DS__ ExpungeLib(__REG__(a6, struct AmiTlsBase *base))
 #else
 BPTR __ASM__ __SAVE_DS__ ExpungeLib(__REG__(a6, struct AmiTlsBase *base))

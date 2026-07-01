@@ -9,13 +9,40 @@
 #   smake rebuild      clean wrapper + library, rebuild all
 #   smake rebuild-all  clean wrapper + BearSSL + library
 #
+# Build profile knobs (edit, then smake rebuild-all):
+#   CPU=68000 | 68020 | 68040 | 68060     VBCC -cpu= target
+#   OPT_LVL=1 | 2 | 3                       wrapper -O level
+#   BR_OPT_LVL / BR_X509_OPT_LVL            BearSSL smakefile.bearssl -O levels
+#
+# Examples:
+#   68020 default:        smake rebuild-all
+#   68000 + div helpers:  edit CPU=68000, smake rebuild-all
+#   O3 BearSSL + x509:    edit BR_OPT_LVL=3 BR_X509_OPT_LVL=3, smake rebuild-all
+#
+# VBCC: keep -c99 — BearSSL uses C99 struct initialisers (ssl_engine.c) and
+# uint64_t; 0.9h+ may default to C99 but the flag is still required on some
+# installs.  -+ and -DVBCC are not needed (__VBCC__ is always defined).
+#
 # Link must include bearssl/int/i15_rshift.o and bearssl/ec/ecdsa_atr.o
 # (ECDSA certificate chains).  If vlink reports undefined _br_i15_rshift or
-# _br_ecdsa_asn1_to_raw, run smake rebuild-all — 
+# _br_ecdsa_asn1_to_raw, run smake rebuild-all.
+#
+# BearSSL is built via ONE sub-smake (bearssl_deps.stamp).  Do not attach a
+# sub-smake recipe to every entry in $(BROBJS) — parallel smake runs then
+# corrupt the .o files and vlink reports thousands of duplicate symbols.
 #
 
 CC      = vc
-CFLAGS  = -c99 -O2 -+ -DVBCC -c
+CPU     = 68020
+OPT_LVL = 2
+BR_OPT_LVL = 2
+BR_X509_OPT_LVL = 1
+
+BUILDFLAGS = -DATLS_BUILD_CPU=$(CPU) -DATLS_BUILD_OPT_LVL=$(OPT_LVL) \
+             -DATLS_BUILD_BR_OPT_LVL=$(BR_OPT_LVL) \
+             -DATLS_BUILD_BR_X509_OPT_LVL=$(BR_X509_OPT_LVL)
+
+CFLAGS  = -c99 -O$(OPT_LVL) -cpu=$(CPU) -c $(BUILDFLAGS)
 LDFLAGS = -nostdlib -lamiga -lvc
 LD      = $(CC) $(LDFLAGS) -o
 RM      = delete force quiet
@@ -23,12 +50,13 @@ RM      = delete force quiet
 TARGET  = amitls.library
 BUILD_H = private/atls_build.h
 BEARSSL_MK   = smakefile.bearssl
+BEARSSL_STAMP = bearssl_deps.stamp
 
 INCL    = -I. -I../include -Iinclude
 BRINCL  = $(INCL) -Ibearssl_port -Ithird_party/bearssl/inc -Ithird_party/bearssl/src -DBR_LOMUL -DBR_USE_UNIX_TIME=0 -DBR_USE_WIN32_TIME=0
 SCNET  = -Inetinclude: -Inetinclude
 
-# Amiga wrapper / port (changes often)
+# Amiga wrapper / port (changes often).  atls_vbcc_div.o required for CPU=68000.
 LIB_OBJS = StartUp.o LibInit.o libbases.o amitls_funcs.o \
            atls_alloc.o atls_error.o atls_task.o atls_socket.o \
            atls_x509_insecure.o atls_x509_engine.o atls_trust.o \
@@ -74,18 +102,16 @@ all: $(TARGET)
 rebuild: clean all
 
 rebuild-all:
-	smake -f $(BEARSSL_MK) clean
-	smake rebuild
+	smake -f $(BEARSSL_MK) clean CPU=$(CPU) BR_OPT_LVL=$(BR_OPT_LVL) BR_X509_OPT_LVL=$(BR_X509_OPT_LVL)
+	smake rebuild CPU=$(CPU) OPT_LVL=$(OPT_LVL) BR_OPT_LVL=$(BR_OPT_LVL) BR_X509_OPT_LVL=$(BR_X509_OPT_LVL)
 
-# Build or refresh BearSSL .o (sub-smake is incremental; no global dirs dependency)
-bearssl:
-	smake -f $(BEARSSL_MK)
+# Build or refresh BearSSL .o (single sub-smake; see header warning).
+bearssl: $(BEARSSL_STAMP)
 
-# Rebuild vendored BearSSL .o when smakefile.bearssl changes or objects are missing.
-$(BROBJS): smakefile.bearssl
-	smake -f $(BEARSSL_MK)
+$(BEARSSL_STAMP): smakefile.bearssl
+	smake -f $(BEARSSL_MK) CPU=$(CPU) BR_OPT_LVL=$(BR_OPT_LVL) BR_X509_OPT_LVL=$(BR_X509_OPT_LVL)
 
-$(TARGET): $(LIB_OBJS) $(BUILD_H) $(BROBJS)
+$(TARGET): $(LIB_OBJS) $(BUILD_H) $(BEARSSL_STAMP)
 	$(LD) $(TARGET) $(LIB_OBJS) $(BROBJS)
 
 StartUp.o: StartUp.c $(BUILD_H) amitls_funcs.h compiler.h
@@ -131,7 +157,7 @@ atls_string.o: bearssl_port/atls_string.c
 	$(CC) $(CFLAGS) $(INCL) -o=$@ bearssl_port/atls_string.c
 
 atls_vbcc_div.o: bearssl_port/atls_vbcc_div.c
-	$(CC) $(CFLAGS) $(INCL) -o=$@ bearssl_port/atls_vbcc_div.c
+	$(CC) $(CFLAGS) $(BUILDFLAGS) $(INCL) -o=$@ bearssl_port/atls_vbcc_div.c
 
 release:
 	Copy $(TARGET) //SYS/Libs/$(TARGET)
@@ -153,4 +179,5 @@ clean:
 
 clean-all:
 	smake -f $(BEARSSL_MK) clean
+	-$(RM) $(BEARSSL_STAMP)
 	smake clean

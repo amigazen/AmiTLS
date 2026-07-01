@@ -24,8 +24,14 @@
 
 #include "inner.h"
 
+#if defined(__VBCC__)
+/* VBCC warns "statement has no effect" on ((void)0) debug stubs. */
+#define engine_dbg(x) do { (void)0; } while (0)
+#define engine_dbg_num(x) do { (void)(x); } while (0)
+#else
 #define engine_dbg(x) ((void)0)
 #define engine_dbg_num(x) ((void)0)
+#endif
 
 #if 0
 /* obsolete */

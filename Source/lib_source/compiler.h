@@ -7,16 +7,12 @@
  * Use NDK-style macros from clib/compiler-specific.h:
  *   __ASM__, __REG__(r,p), __SAVE_DS__, __STDARGS__, __FAR__, etc.
  *
- * VBCC: compile with -DVBCC -sc -c (see makefile.vbcc).  vc defines __VBCC__;
- * -DVBCC selects Amiga-library conventions (SEGLISTPTR) only.
+ * VBCC: vc always defines __VBCC__; that selects Amiga-library conventions
+ * (SEGLISTPTR, LVO register syntax) in this header and StartUp.c.
  */
 
 #ifndef ATLS_COMPILER_H
 #define ATLS_COMPILER_H
-
-#if defined(VBCC) && !defined(__VBCC__)
-#define __VBCC__
-#endif
 
 #include <exec/types.h>
 #include <clib/compiler-specific.h>
@@ -39,7 +35,7 @@ struct MyDataInit
 };
 
 /* CLib37x / VBCC: seglist from InitLib is APTR, not BPTR */
-#ifdef VBCC
+#ifdef __VBCC__
 #ifndef SEGLISTPTR
 #define SEGLISTPTR APTR
 #endif

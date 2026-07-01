@@ -26,7 +26,7 @@
 #include <exec/semaphores.h>
 #endif
 
-#ifdef VBCC
+#ifdef __VBCC__
 #ifndef SEGLISTPTR
 #define SEGLISTPTR APTR
 #endif

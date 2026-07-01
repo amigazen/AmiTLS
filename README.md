@@ -260,6 +260,7 @@ cd SDK/Examples
 smake
 ATlsTest
 ATlsTest -verify -ca cacert.pem https://www.google.com
+ATlsTest -bench-only -verify -ca cacert.pem www.google.com   # ElapsedTime benchmarks
 ```
 
 ## Prerequisites / dependencies

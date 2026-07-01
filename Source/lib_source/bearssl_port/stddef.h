@@ -12,7 +12,8 @@
 #define _STDDEF_H
 #endif
 
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#if (defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)) \
+    || defined(__VBCC__)
 
 #ifndef size_t
 typedef unsigned long size_t;

@@ -14,10 +14,27 @@
 #   smake -f smakefile.bearssl
 # then rebuild amitls.library (smake rebuild from lib_source).
 #
+# Build profile (edit or pass on smake command line; must match smakefile):
+#   CPU=68000 | 68020 | 68040 | 68060
+#   BR_OPT_LVL=1 | 2 | 3          most BearSSL objects
+#   BR_X509_OPT_LVL=1 | 2 | 3      x509/ssl_hs_client/ec_prime/ec_c25519
+#
+# VBCC: -c99 required for BearSSL C99 initialisers; see smakefile header.
+#
+# Example O3 x509 profile:
+#   smake rebuild-all BR_OPT_LVL=3 BR_X509_OPT_LVL=3
+#
 
 CC      = vc
-CFLAGS  = -c99 -O2 -+ -DVBCC -c
-CFLAGS_LO = -c99 -O1 -+ -DVBCC -c
+CPU     = 68020
+BR_OPT_LVL = 2
+BR_X509_OPT_LVL = 1
+
+BUILDFLAGS = -DATLS_BUILD_CPU=$(CPU) -DATLS_BUILD_BR_OPT_LVL=$(BR_OPT_LVL) \
+             -DATLS_BUILD_BR_X509_OPT_LVL=$(BR_X509_OPT_LVL)
+
+CFLAGS  = -c99 -O$(BR_OPT_LVL) -cpu=$(CPU) -c $(BUILDFLAGS)
+CFLAGS_X509 = -c99 -O$(BR_X509_OPT_LVL) -cpu=$(CPU) -c $(BUILDFLAGS)
 RM      = delete force quiet
 
 INCL    = -I. -I../include -Iinclude
@@ -151,7 +168,7 @@ bearssl/ssl/ssl_client.o: third_party/bearssl/src/ssl/ssl_client.c
 
 bearssl/ssl/ssl_hs_client.o: third_party/bearssl/src/ssl/ssl_hs_client.c
 	@Makedir bearssl/ssl ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_hs_client.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/ssl/ssl_hs_client.c
 
 bearssl/ssl/prf_sha256.o: third_party/bearssl/src/ssl/prf_sha256.c
 	@Makedir bearssl/ssl ALL
@@ -227,15 +244,15 @@ bearssl/rsa/rsa_pkcs1_sig_unpad.o: third_party/bearssl/src/rsa/rsa_pkcs1_sig_unp
 
 bearssl/x509/x509_decoder.o: third_party/bearssl/src/x509/x509_decoder.c
 	@Makedir bearssl/x509 ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_decoder.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_decoder.c
 
 bearssl/x509/x509_minimal.o: third_party/bearssl/src/x509/x509_minimal.c
 	@Makedir bearssl/x509 ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_minimal.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/x509/x509_minimal.c
 
 bearssl/x509/asn1enc.o: third_party/bearssl/src/x509/asn1enc.c
 	@Makedir bearssl/x509 ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/x509/asn1enc.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/x509/asn1enc.c
 
 bearssl/ec/ec_p256_m15.o: third_party/bearssl/src/ec/ec_p256_m15.c
 	@Makedir bearssl/ec ALL
@@ -247,11 +264,11 @@ bearssl/ec/ec_all_m15.o: third_party/bearssl/src/ec/ec_all_m15.c
 
 bearssl/ec/ec_prime_i15.o: third_party/bearssl/src/ec/ec_prime_i15.c
 	@Makedir bearssl/ec ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_prime_i15.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_prime_i15.c
 
 bearssl/ec/ec_c25519_m15.o: third_party/bearssl/src/ec/ec_c25519_m15.c
 	@Makedir bearssl/ec ALL
-	$(CC) $(CFLAGS_LO) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_c25519_m15.c
+	$(CC) $(CFLAGS_X509) $(BRINCL) -o=$@ third_party/bearssl/src/ec/ec_c25519_m15.c
 
 bearssl/ec/ec_secp256r1.o: third_party/bearssl/src/ec/ec_secp256r1.c
 	@Makedir bearssl/ec ALL
