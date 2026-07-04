@@ -42,6 +42,7 @@
  */
 
 #include <exec/types.h>
+#include <exec/libraries.h>
 #include <exec/memory.h>
 #include <dos/dos.h>
 #include <stdarg.h>
@@ -53,7 +54,8 @@
 #include <clib/compiler-specific.h>
 #include <proto/exec.h>
 #include <proto/dos.h>
-#include <proto/atls.h>
+
+#include <proto/amitls.h>
 #include <proto/lowlevel.h>
 
 /* Must match private/atls_build.h ATLS_BR_EPOCH_DAYS (ATlsTest-only check). */
@@ -70,8 +72,11 @@
 #include <libraries/bsdsocket.h>
 #include <proto/bsdsocket.h>
 
-extern int errno;
-extern int h_errno;
+int errno;
+int h_errno;
+
+struct Library *TlsBase;
+struct Library *SocketBase;
 
 static const char version_tag[] = "\0$VER: ATlsTest 1.0 (23.6.2026)";
 

@@ -151,7 +151,7 @@ amitls.library/TlsClearTrustedCerts
    INCLUDE FILES
 
    #include <libraries/amitls.h>
-   #include <proto/atls.h>
+   #include <proto/amitls.h>
 
    SEE ALSO
        amitls.library/tags, amitls.library/errors, amitls.library/hooks,

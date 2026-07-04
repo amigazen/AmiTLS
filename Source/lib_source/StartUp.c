@@ -60,7 +60,7 @@ ULONG __ASM__ ExtFuncLib(void);
 APTR FuncTab[];
 
 /*
- * FuncTab[] order MUST match SDK/SFD/amitls_lib.sfd and pragmas/atls_pragmas.h.
+ * FuncTab[] order MUST match SDK/SFD/amitls_lib.sfd and pragmas/amitls_pragmas.h.
  */
 struct InitTable InitTab = {
     (ULONG)sizeof(struct AmiTlsBase),

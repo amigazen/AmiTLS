@@ -168,9 +168,12 @@ install:
 
 headers:
 	Copy clone /include/libraries/amitls.h //SDK/Include_h/libraries/amitls.h
-	Copy clone /include/proto/atls.h //SDK/Include_h/proto/atls.h
-	Copy clone /include/clib/atls_protos.h //SDK/Include_h/clib/atls_protos.h
-	Copy clone /include/pragmas/atls_pragmas.h //SDK/Include_h/pragmas/atls_protos.h
+	Copy clone /include/proto/amitls.h //SDK/Include_h/proto/amitls.h
+	Copy clone /include/clib/amitls_protos.h //SDK/Include_h/clib/amitls_protos.h
+	Copy clone /include/pragmas/amitls_pragmas.h //SDK/Include_h/pragmas/amitls_pragmas.h
+	Copy clone /include/pragma/amitls_lib.h //SDK/Include_h/pragma/amitls_lib.h
+	Copy clone /include/inline/amitls.h //SDK/Include_h/inline/amitls.h
+	Copy clone /include/inline/amitls_protos.h //SDK/Include_h/inline/amitls_protos.h
 
 clean:
 	-$(RM) \#?.o
