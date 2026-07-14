@@ -1,4 +1,4 @@
-==id $VER: amitls_lib.sfd 1.0 (23.6.2026)
+==id $VER: amitls_lib.sfd 1.1 (14.7.2026)
 *"amitls.library"
 ==base _TlsBase
 ==basetype struct Library *
@@ -14,7 +14,9 @@
 * Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned
 * bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase).
 *
-LONG TlsBaseTagList(struct TagItem *tags) (a0)
+LONG TlsBaseTagsA(struct TagItem *tags) (a0)
+==varargs
+LONG TlsBaseTags(...) (a0)
 LONG TlsError() ()
 STRPTR TlsGetErrorString(LONG code) (d0)
 *
@@ -25,16 +27,23 @@ LONG TlsTaskAttach(struct Library *SocketBase, APTR errno_ptr) (a0,a1)
 VOID TlsTaskDetach() ()
 *
 * Tier 1 - TlsContext (verify policy, optional CA overrides).
+* Pass NULL / TAG_DONE for defaults.
 *
-struct TlsContext *NewTlsContext(struct TagItem *tags) (a0)
+struct TlsContext *NewTlsContextA(struct TagItem *tags) (a0)
+==varargs
+struct TlsContext *NewTlsContext(...) (a0)
 VOID DisposeTlsContext(struct TlsContext *ctx) (a0)
 LONG SetTlsContextAttrsA(struct TlsContext *ctx, struct TagItem *tags) (a0,a1)
+==varargs
+LONG SetTlsContextAttrs(struct TlsContext *ctx, ...) (a0,a1)
 *
 * Tier 2 - TlsConnection (attach TLS to an existing TCP socket).
 *
 struct TlsConnection *NewTlsConnection(struct TlsContext *ctx) (a0)
 VOID DisposeTlsConnection(struct TlsConnection *conn) (a0)
-LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock, STRPTR hostname, struct TagItem *tags) (a0,d0,a1,a2)
+LONG TlsAttachSocketA(struct TlsConnection *conn, LONG sock, STRPTR hostname, struct TagItem *tags) (a0,d0,a1,a2)
+==varargs
+LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock, STRPTR hostname, ...) (a0,d0,a1,a2)
 LONG TlsRead(struct TlsConnection *conn, APTR buffer, ULONG buflen, ULONG timeout_secs) (a0,a1,d0,d1)
 LONG TlsWrite(struct TlsConnection *conn, APTR buffer, ULONG len) (a0,a1,d0)
 ULONG TlsPending(struct TlsConnection *conn) (a0)

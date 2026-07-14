@@ -17,7 +17,7 @@
 
 struct AmiTlsBase;
 
-LONG __ASM__ __SAVE_DS__ TlsBaseTagList(__REG__(a0, struct TagItem *tags),
+LONG __ASM__ __SAVE_DS__ TlsBaseTagsA(__REG__(a0, struct TagItem *tags),
     __REG__(a6, struct AmiTlsBase *libbase));
 LONG __ASM__ __SAVE_DS__ TlsError(__REG__(a6, struct AmiTlsBase *libbase));
 STRPTR __ASM__ __SAVE_DS__ TlsGetErrorString(__REG__(d0, LONG code));
@@ -26,7 +26,7 @@ LONG __ASM__ __SAVE_DS__ TlsTaskAttach(__REG__(a0, struct Library *sock_base),
     __REG__(a1, APTR errno_ptr), __REG__(a6, struct AmiTlsBase *libbase));
 VOID __ASM__ __SAVE_DS__ TlsTaskDetach(__REG__(a6, struct AmiTlsBase *libbase));
 
-struct TlsContext * __ASM__ __SAVE_DS__ NewTlsContext(__REG__(a0, struct TagItem *tags),
+struct TlsContext * __ASM__ __SAVE_DS__ NewTlsContextA(__REG__(a0, struct TagItem *tags),
     __REG__(a6, struct AmiTlsBase *libbase));
 VOID __ASM__ __SAVE_DS__ DisposeTlsContext(__REG__(a0, struct TlsContext *ctx));
 LONG __ASM__ __SAVE_DS__ SetTlsContextAttrsA(__REG__(a0, struct TlsContext *ctx),
@@ -35,7 +35,7 @@ LONG __ASM__ __SAVE_DS__ SetTlsContextAttrsA(__REG__(a0, struct TlsContext *ctx)
 struct TlsConnection * __ASM__ __SAVE_DS__ NewTlsConnection(
     __REG__(a0, struct TlsContext *ctx), __REG__(a6, struct AmiTlsBase *libbase));
 VOID __ASM__ __SAVE_DS__ DisposeTlsConnection(__REG__(a0, struct TlsConnection *conn));
-LONG __ASM__ __SAVE_DS__ TlsAttachSocket(__REG__(a0, struct TlsConnection *conn),
+LONG __ASM__ __SAVE_DS__ TlsAttachSocketA(__REG__(a0, struct TlsConnection *conn),
     __REG__(d0, LONG sock), __REG__(a1, STRPTR hostname),
     __REG__(a2, struct TagItem *tags), __REG__(a6, struct AmiTlsBase *libbase));
 LONG __ASM__ __SAVE_DS__ TlsRead(__REG__(a0, struct TlsConnection *conn),

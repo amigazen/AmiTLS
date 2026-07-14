@@ -14,7 +14,7 @@
 ** Tier 0 - Per-process TLS defaults (after OpenLibrary only).
 ** Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned
 ** bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase).
-_LVOTlsBaseTagList equ -30
+_LVOTlsBaseTagsA equ -30
 _LVOTlsError equ -36
 _LVOTlsGetErrorString equ -42
 ** Tier 1 - Per-task TLS runtime (call once per Exec task using TLS I/O).
@@ -22,13 +22,14 @@ _LVOTlsGetErrorString equ -42
 _LVOTlsTaskAttach equ -48
 _LVOTlsTaskDetach equ -54
 ** Tier 1 - TlsContext (verify policy, optional CA overrides).
-_LVONewTlsContext equ -60
+** Pass NULL / TAG_DONE for defaults.
+_LVONewTlsContextA equ -60
 _LVODisposeTlsContext equ -66
 _LVOSetTlsContextAttrsA equ -72
 ** Tier 2 - TlsConnection (attach TLS to an existing TCP socket).
 _LVONewTlsConnection equ -78
 _LVODisposeTlsConnection equ -84
-_LVOTlsAttachSocket equ -90
+_LVOTlsAttachSocketA equ -90
 _LVOTlsRead equ -96
 _LVOTlsWrite equ -102
 _LVOTlsPending equ -108

@@ -68,7 +68,7 @@ Build amihttp with the AmiTLS backend (`smake -f smakefile.amitls` in
 
 - Calls `TlsTaskAttach()` / `TlsTaskDetach()` per task (ref-counted)
 - Creates per-connection `TlsContext` with `ATSA_CA_BUNDLE_PATH`
-- Attaches the pooled TCP socket with `TlsAttachSocket()`
+- Attaches the pooled TCP socket with `TlsAttachSocketA()`
 - Drives handshake via `TlsWrite()` (deferred model) or `TlsHandshake()`
 - Maps `ERROR_TLS_*` to `ERROR_HTTP_*` for callers
 
@@ -92,7 +92,7 @@ configuration, and tiered scope (process → task → connection).
 
 | Tier | Objects / LVOs | Use case |
 |------|----------------|----------|
-| 0 | `TlsBaseTagList`, `TlsError`, `TlsGetErrorString` | Process defaults (CA bundle, verify policy, break mask) |
+| 0 | `TlsBaseTagsA`, `TlsError`, `TlsGetErrorString` | Process defaults (CA bundle, verify policy, break mask) |
 | 1 | `TlsTaskAttach`, `TlsTaskDetach`, `TlsContext` | Per-Exec-task socket/errno binding; persistent TLS settings |
 | 2 | `TlsConnection` | **Primary API** — attach TLS to a connected TCP socket, read/write app data |
 | 3 | `TlsLoadCABundle`, `TlsClearTrustedCerts` | Trust store path configuration (`TlsAddTrustedCert` reserved) |
@@ -108,9 +108,9 @@ struct TagItem basetags[] = {
 TlsBase = OpenLibrary(AMITLSNAME, AMITLSVERSION);
 SocketBase = OpenLibrary("bsdsocket.library", 4);
 TlsTaskAttach(SocketBase, (APTR)&errno);
-TlsBaseTagList(basetags);
+TlsBaseTagsA(basetags);
 
-ctx = NewTlsContext(NULL);
+ctx = NewTlsContextA(NULL);
 conn = NewTlsConnection(ctx);
 /* sock = socket() + connect(host, 443) in your code */
 TlsAttachSocket(conn, sock, (STRPTR)"www.example.com",
@@ -134,7 +134,7 @@ CloseLibrary(TlsBase);
 ### Deferred handshake (ABI v1.1, revision 2+)
 
 ```c
-TlsAttachSocket(conn, sock, hostname, TAG_DONE);
+TlsAttachSocketA(conn, sock, hostname, NULL);
 rc = TlsHandshake(conn, 30);
 if (rc == ERROR_TLS_WANT_READ || rc == ERROR_TLS_WANT_WRITE) {
     /* WaitSelect on sock, then retry TlsHandshake */
@@ -161,7 +161,7 @@ TlsAttachSocket(conn, sock, hostname,
 | TLS client | ✅ Full | TLS 1.2 only (`BR_TLS12`) |
 | Cipher suites | ✅ Partial | ECDHE-ECDSA-CHACHA20, ECDHE-ECDSA-AES128-GCM, ECDHE-RSA-AES128-GCM |
 | TLS 1.3 | ❌ | Not in BearSSL client profile used |
-| SNI | ✅ Full | Hostname passed to `TlsAttachSocket()` / `br_ssl_client_reset()` |
+| SNI | ✅ Full | Hostname passed to `TlsAttachSocketA()` / `br_ssl_client_reset()` |
 | ALPN | ❌ | Tag reserved (`ATSA_ALPN`) |
 | Server role | ❌ | Client only |
 | DNS / TCP connect | ❌ | Caller-owned (by design) |

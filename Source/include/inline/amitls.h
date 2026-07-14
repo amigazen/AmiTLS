@@ -16,7 +16,7 @@
 /* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned */
 /* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase). */
 
-#define TlsBaseTagList(tags)    \
+#define TlsBaseTagsA(tags)    \
 ({  \
 	register void *b __asm("a6") = TlsBase;  \
 	register struct TagItem *p0 __asm("a0") = (tags);   \
@@ -24,6 +24,15 @@
 	__asm volatile ("jsr a6@(-30:W);" : "+r"(b), "=r"(r) : "r"(p0) : "d0", "d1", "a0", "a1", "fp0", "fp1", "cc", "memory");    \
 	r;   \
 })
+
+#ifndef NO_INLINE_STDARG
+#define TlsBaseTags(vargs...)    \
+({  \
+	ULONG _argarray[] = {vargs};   \
+	TlsBaseTagsA(_argarray);   \
+	r;   \
+})
+#endif
 
 #define TlsError()    \
 ({  \
@@ -64,8 +73,9 @@
 
 
 /* Tier 1 - TlsContext (verify policy, optional CA overrides). */
+/* Pass NULL / TAG_DONE for defaults. */
 
-#define NewTlsContext(tags)    \
+#define NewTlsContextA(tags)    \
 ({  \
 	register void *b __asm("a6") = TlsBase;  \
 	register struct TagItem *p0 __asm("a0") = (tags);   \
@@ -73,6 +83,15 @@
 	__asm volatile ("jsr a6@(-60:W);" : "+r"(b), "=r"(r) : "r"(p0) : "d0", "d1", "a0", "a1", "fp0", "fp1", "cc", "memory");    \
 	r;   \
 })
+
+#ifndef NO_INLINE_STDARG
+#define NewTlsContext(vargs...)    \
+({  \
+	ULONG _argarray[] = {vargs};   \
+	NewTlsContextA(_argarray);   \
+	r;   \
+})
+#endif
 
 #define DisposeTlsContext(ctx)    \
 ({  \
@@ -90,6 +109,15 @@
 	__asm volatile ("jsr a6@(-72:W);" : "+r"(b), "=r"(r) : "r"(p0), "r"(p1) : "d0", "d1", "a0", "a1", "fp0", "fp1", "cc", "memory");    \
 	r;   \
 })
+
+#ifndef NO_INLINE_STDARG
+#define SetTlsContextAttrs(ctx, vargs...)    \
+({  \
+	ULONG _argarray[] = {vargs};   \
+	SetTlsContextAttrsA((ctx), _argarray);   \
+	r;   \
+})
+#endif
 
 
 /* Tier 2 - TlsConnection (attach TLS to an existing TCP socket). */
@@ -110,7 +138,7 @@
 	__asm volatile ("jsr a6@(-84:W);" : "+r"(b), "=r"(r) : "r"(p0) : "d0", "d1", "a0", "a1", "fp0", "fp1", "cc", "memory");    \
 })
 
-#define TlsAttachSocket(conn, sock, hostname, tags)    \
+#define TlsAttachSocketA(conn, sock, hostname, tags)    \
 ({  \
 	register void *b __asm("a6") = TlsBase;  \
 	register struct TlsConnection *p0 __asm("a0") = (conn);   \
@@ -121,6 +149,15 @@
 	__asm volatile ("jsr a6@(-90:W);" : "+r"(b), "=r"(r) : "r"(p0), "r"(p1), "r"(p2), "r"(p3) : "d0", "d1", "a0", "a1", "fp0", "fp1", "cc", "memory");    \
 	r;   \
 })
+
+#ifndef NO_INLINE_STDARG
+#define TlsAttachSocket(conn, sock, hostname, vargs...)    \
+({  \
+	ULONG _argarray[] = {vargs};   \
+	TlsAttachSocketA((conn), (sock), (hostname), _argarray);   \
+	r;   \
+})
+#endif
 
 #define TlsRead(conn, buffer, buflen, timeout_secs)    \
 ({  \

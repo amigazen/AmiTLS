@@ -27,7 +27,8 @@ extern "C" {
 /* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned*/
 /* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase).*/
 
-LONG TlsBaseTagList(struct TagItem *tags);
+LONG TlsBaseTagsA(struct TagItem *tags);
+LONG TlsBaseTags(Tag firstTag, ...);
 LONG TlsError(void);
 STRPTR TlsGetErrorString(LONG code);
 
@@ -38,16 +39,20 @@ LONG TlsTaskAttach(struct Library *SocketBase, APTR errno_ptr);
 void TlsTaskDetach(void);
 
 /* Tier 1 - TlsContext (verify policy, optional CA overrides).*/
+/* Pass NULL / TAG_DONE for defaults.*/
 
-struct TlsContext *NewTlsContext(struct TagItem *tags);
+struct TlsContext *NewTlsContextA(struct TagItem *tags);
+struct TlsContext *NewTlsContext(Tag firstTag, ...);
 void DisposeTlsContext(struct TlsContext *ctx);
 LONG SetTlsContextAttrsA(struct TlsContext *ctx, struct TagItem *tags);
+LONG SetTlsContextAttrs(struct TlsContext *ctx, ...);
 
 /* Tier 2 - TlsConnection (attach TLS to an existing TCP socket).*/
 
 struct TlsConnection *NewTlsConnection(struct TlsContext *ctx);
 void DisposeTlsConnection(struct TlsConnection *conn);
-LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock, STRPTR hostname, struct TagItem *tags);
+LONG TlsAttachSocketA(struct TlsConnection *conn, LONG sock, STRPTR hostname, struct TagItem *tags);
+LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock, STRPTR hostname, ...);
 LONG TlsRead(struct TlsConnection *conn, APTR buffer, ULONG buflen, ULONG timeout_secs);
 LONG TlsWrite(struct TlsConnection *conn, APTR buffer, ULONG len);
 ULONG TlsPending(struct TlsConnection *conn);

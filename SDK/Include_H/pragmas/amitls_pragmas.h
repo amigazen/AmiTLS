@@ -20,7 +20,10 @@
 /* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned */
 /* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase). */
 
-#pragma libcall TlsBase TlsBaseTagList 1E 801
+#pragma libcall TlsBase TlsBaseTagsA 1E 801
+#if defined(__SASC_60)
+#pragma tagcall TlsBase TlsBaseTags 1E 801
+#endif /* __SASC_60 */
 #pragma libcall TlsBase TlsError 24 00
 #pragma libcall TlsBase TlsGetErrorString 2A 001
 
@@ -31,16 +34,26 @@
 #pragma libcall TlsBase TlsTaskDetach 36 00
 
 /* Tier 1 - TlsContext (verify policy, optional CA overrides). */
+/* Pass NULL / TAG_DONE for defaults. */
 
-#pragma libcall TlsBase NewTlsContext 3C 801
+#pragma libcall TlsBase NewTlsContextA 3C 801
+#if defined(__SASC_60)
+#pragma tagcall TlsBase NewTlsContext 3C 801
+#endif /* __SASC_60 */
 #pragma libcall TlsBase DisposeTlsContext 42 801
 #pragma libcall TlsBase SetTlsContextAttrsA 48 9802
+#if defined(__SASC_60)
+#pragma tagcall TlsBase SetTlsContextAttrs 48 9802
+#endif /* __SASC_60 */
 
 /* Tier 2 - TlsConnection (attach TLS to an existing TCP socket). */
 
 #pragma libcall TlsBase NewTlsConnection 4E 801
 #pragma libcall TlsBase DisposeTlsConnection 54 801
-#pragma libcall TlsBase TlsAttachSocket 5A A90804
+#pragma libcall TlsBase TlsAttachSocketA 5A A90804
+#if defined(__SASC_60)
+#pragma tagcall TlsBase TlsAttachSocket 5A A90804
+#endif /* __SASC_60 */
 #pragma libcall TlsBase TlsRead 60 109804
 #pragma libcall TlsBase TlsWrite 66 09803
 #pragma libcall TlsBase TlsPending 6C 801

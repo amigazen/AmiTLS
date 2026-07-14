@@ -75,20 +75,20 @@ APTR FuncTab[] = {
     (APTR)ExpungeLib,
     (APTR)ExtFuncLib,
     /* Tier 0 */
-    (APTR)TlsBaseTagList,
+    (APTR)TlsBaseTagsA,
     (APTR)TlsError,
     (APTR)TlsGetErrorString,
     /* Tier 1 task */
     (APTR)TlsTaskAttach,
     (APTR)TlsTaskDetach,
     /* Tier 1 context */
-    (APTR)NewTlsContext,
+    (APTR)NewTlsContextA,
     (APTR)DisposeTlsContext,
     (APTR)SetTlsContextAttrsA,
     /* Tier 2 connection */
     (APTR)NewTlsConnection,
     (APTR)DisposeTlsConnection,
-    (APTR)TlsAttachSocket,
+    (APTR)TlsAttachSocketA,
     (APTR)TlsRead,
     (APTR)TlsWrite,
     (APTR)TlsPending,

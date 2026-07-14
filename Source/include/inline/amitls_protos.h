@@ -16,8 +16,13 @@
 /* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned */
 /* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase). */
 
-LONG __TlsBaseTagList(__reg("a6") void *, __reg("a0") struct TagItem *tags)="\tjsr\t-30(a6)";
-#define TlsBaseTagList(tags) __TlsBaseTagList(TlsBase, (tags))
+LONG __TlsBaseTagsA(__reg("a6") void *, __reg("a0") struct TagItem *tags)="\tjsr\t-30(a6)";
+#define TlsBaseTagsA(tags) __TlsBaseTagsA(TlsBase, (tags))
+
+#if !defined(NO_INLINE_STDARG) && (__STDC__ == 1L) && (__STDC_VERSION__ >= 199901L)
+LONG __TlsBaseTags(__reg("a6") void *, ...)="\tmove.l\ta0,-(a7)\n\tlea\t4(a7),a0\n\tjsr\t-30(a6)\n\tmovea.l\t(a7)+,a0";
+#define TlsBaseTags(...) __TlsBaseTags(TlsBase, __VA_ARGS__)
+#endif
 
 LONG __TlsError(__reg("a6") void *)="\tjsr\t-36(a6)";
 #define TlsError() __TlsError(TlsBase)
@@ -37,15 +42,26 @@ void __TlsTaskDetach(__reg("a6") void *)="\tjsr\t-54(a6)";
 
 
 /* Tier 1 - TlsContext (verify policy, optional CA overrides). */
+/* Pass NULL / TAG_DONE for defaults. */
 
-struct TlsContext *__NewTlsContext(__reg("a6") void *, __reg("a0") struct TagItem *tags)="\tjsr\t-60(a6)";
-#define NewTlsContext(tags) __NewTlsContext(TlsBase, (tags))
+struct TlsContext *__NewTlsContextA(__reg("a6") void *, __reg("a0") struct TagItem *tags)="\tjsr\t-60(a6)";
+#define NewTlsContextA(tags) __NewTlsContextA(TlsBase, (tags))
+
+#if !defined(NO_INLINE_STDARG) && (__STDC__ == 1L) && (__STDC_VERSION__ >= 199901L)
+struct TlsContext *__NewTlsContext(__reg("a6") void *, ...)="\tmove.l\ta0,-(a7)\n\tlea\t4(a7),a0\n\tjsr\t-60(a6)\n\tmovea.l\t(a7)+,a0";
+#define NewTlsContext(...) __NewTlsContext(TlsBase, __VA_ARGS__)
+#endif
 
 void __DisposeTlsContext(__reg("a6") void *, __reg("a0") struct TlsContext *ctx)="\tjsr\t-66(a6)";
 #define DisposeTlsContext(ctx) __DisposeTlsContext(TlsBase, (ctx))
 
 LONG __SetTlsContextAttrsA(__reg("a6") void *, __reg("a0") struct TlsContext *ctx, __reg("a1") struct TagItem *tags)="\tjsr\t-72(a6)";
 #define SetTlsContextAttrsA(ctx, tags) __SetTlsContextAttrsA(TlsBase, (ctx), (tags))
+
+#if !defined(NO_INLINE_STDARG) && (__STDC__ == 1L) && (__STDC_VERSION__ >= 199901L)
+LONG __SetTlsContextAttrs(__reg("a6") void *, __reg("a0") struct TlsContext *ctx, ...)="\tmove.l\ta1,-(a7)\n\tlea\t4(a7),a1\n\tjsr\t-72(a6)\n\tmovea.l\t(a7)+,a1";
+#define SetTlsContextAttrs(...) __SetTlsContextAttrs(TlsBase, __VA_ARGS__)
+#endif
 
 
 /* Tier 2 - TlsConnection (attach TLS to an existing TCP socket). */
@@ -56,8 +72,13 @@ struct TlsConnection *__NewTlsConnection(__reg("a6") void *, __reg("a0") struct 
 void __DisposeTlsConnection(__reg("a6") void *, __reg("a0") struct TlsConnection *conn)="\tjsr\t-84(a6)";
 #define DisposeTlsConnection(conn) __DisposeTlsConnection(TlsBase, (conn))
 
-LONG __TlsAttachSocket(__reg("a6") void *, __reg("a0") struct TlsConnection *conn, __reg("d0") LONG sock, __reg("a1") STRPTR hostname, __reg("a2") struct TagItem *tags)="\tjsr\t-90(a6)";
-#define TlsAttachSocket(conn, sock, hostname, tags) __TlsAttachSocket(TlsBase, (conn), (sock), (hostname), (tags))
+LONG __TlsAttachSocketA(__reg("a6") void *, __reg("a0") struct TlsConnection *conn, __reg("d0") LONG sock, __reg("a1") STRPTR hostname, __reg("a2") struct TagItem *tags)="\tjsr\t-90(a6)";
+#define TlsAttachSocketA(conn, sock, hostname, tags) __TlsAttachSocketA(TlsBase, (conn), (sock), (hostname), (tags))
+
+#if !defined(NO_INLINE_STDARG) && (__STDC__ == 1L) && (__STDC_VERSION__ >= 199901L)
+LONG __TlsAttachSocket(__reg("a6") void *, __reg("a0") struct TlsConnection *conn, __reg("d0") LONG sock, __reg("a1") STRPTR hostname, ...)="\tmove.l\ta2,-(a7)\n\tlea\t4(a7),a2\n\tjsr\t-90(a6)\n\tmovea.l\t(a7)+,a2";
+#define TlsAttachSocket(...) __TlsAttachSocket(TlsBase, __VA_ARGS__)
+#endif
 
 LONG __TlsRead(__reg("a6") void *, __reg("a0") struct TlsConnection *conn, __reg("a1") APTR buffer, __reg("d0") ULONG buflen, __reg("d1") ULONG timeout_secs)="\tjsr\t-96(a6)";
 #define TlsRead(conn, buffer, buflen, timeout_secs) __TlsRead(TlsBase, (conn), (buffer), (buflen), (timeout_secs))

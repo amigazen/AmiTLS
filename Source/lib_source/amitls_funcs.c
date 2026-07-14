@@ -177,7 +177,7 @@ atls_new_context(struct AmiTlsBase *base, struct TagItem *tags)
     return ctx;
 }
 
-LONG __ASM__ __SAVE_DS__ TlsBaseTagList(__REG__(a0, struct TagItem *tags),
+LONG __ASM__ __SAVE_DS__ TlsBaseTagsA(__REG__(a0, struct TagItem *tags),
     __REG__(a6, struct AmiTlsBase *libbase))
 {
     atls_lvo_bind(libbase);
@@ -227,7 +227,7 @@ VOID __ASM__ __SAVE_DS__ TlsTaskDetach(__REG__(a6, struct AmiTlsBase *libbase))
     }
 }
 
-struct TlsContext * __ASM__ __SAVE_DS__ NewTlsContext(__REG__(a0, struct TagItem *tags),
+struct TlsContext * __ASM__ __SAVE_DS__ NewTlsContextA(__REG__(a0, struct TagItem *tags),
     __REG__(a6, struct AmiTlsBase *libbase))
 {
     atls_lvo_bind(libbase);
@@ -309,7 +309,7 @@ VOID __ASM__ __SAVE_DS__ DisposeTlsConnection(__REG__(a0, struct TlsConnection *
     }
 }
 
-LONG __ASM__ __SAVE_DS__ TlsAttachSocket(__REG__(a0, struct TlsConnection *conn),
+LONG __ASM__ __SAVE_DS__ TlsAttachSocketA(__REG__(a0, struct TlsConnection *conn),
     __REG__(d0, LONG sock), __REG__(a1, STRPTR hostname),
     __REG__(a2, struct TagItem *tags), __REG__(a6, struct AmiTlsBase *libbase))
 {
@@ -522,7 +522,7 @@ LONG __ASM__ __SAVE_DS__ TlsLoadCABundle(__REG__(a0, STRPTR path),
 {
     /*
      * Sets the process-wide PEM bundle path (same field as ATBT_CA_BUNDLE_PATH).
-     * Prefer TlsBaseTagList(ATBT_CA_BUNDLE_PATH); this LVO is a convenience for
+     * Prefer TlsBaseTagsA / TlsBaseTags(ATBT_CA_BUNDLE_PATH); this LVO is a convenience for
      * callers that configure trust via a function call instead of tags.
      */
     atls_lvo_bind(libbase);

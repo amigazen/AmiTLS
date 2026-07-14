@@ -74,7 +74,7 @@ struct TlsConnection;
 #define ERROR_TLS_WANT_WRITE            8816
 
 /****************************************************************************/
-/* TlsBaseTagList tags (Tier 0 - per-process / per-library defaults)        */
+/* TlsBaseTagsA / TlsBaseTags tags (Tier 0 - per-process defaults)          */
 /****************************************************************************/
 
 #define ATBT_ERRNOPTR               (TAG_USER + 0x01)
@@ -85,7 +85,7 @@ struct TlsConnection;
 #define ATBT_LOG_HOOK               (TAG_USER + 0x05)
 
 /****************************************************************************/
-/* SetTlsContextAttrsA tags (Tier 1)                                        */
+/* NewTlsContextA / SetTlsContextAttrsA tags (Tier 1)                       */
 /****************************************************************************/
 
 #define ATSA_SSL_VERIFY             (TAG_USER + 0x100)
@@ -96,7 +96,7 @@ struct TlsConnection;
 #define ATSA_CA_BUNDLE_PATH         (TAG_USER + 0x104)
 
 /****************************************************************************/
-/* TlsAttachSocket one-shot tags (Tier 2)                                   */
+/* TlsAttachSocketA / TlsAttachSocket one-shot tags (Tier 2)                */
 /****************************************************************************/
 
 #define ATTA_SSL_VERIFY             (TAG_USER + 0x200)
@@ -168,7 +168,7 @@ struct TlsPeerCert
 
 /****************************************************************************/
 /* Tier 2 - TlsConnection (caller-owned TCP socket + TLS handshake)           */
-/*   TlsAttachSocket(conn, sock, hostname, tags) expects sock from connect(). */
+/*   TlsAttachSocketA(conn, sock, hostname, tags) expects sock from connect().*/
 /*   TlsHandshake(conn, timeout_secs) completes handshake after attach (v1.1).  */
 /****************************************************************************/
 

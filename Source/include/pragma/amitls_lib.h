@@ -20,7 +20,10 @@
 /* Bootstrap: OpenLibrary(AMITLSNAME, AMITLSVERSION) plus caller-owned */
 /* bsdsocket.library (pass its base to TlsTaskAttach, like AmiSSL_SocketBase). */
 
-#pragma amicall(TlsBase, 0x1E, TlsBaseTagList(a0))
+#pragma amicall(TlsBase, 0x1E, TlsBaseTagsA(a0))
+#if defined(__STORM__)
+#pragma tagcall(TlsBase, 0x1E, TlsBaseTags(a0))
+#endif /* __STORM__ */
 #pragma amicall(TlsBase, 0x24, TlsError())
 #pragma amicall(TlsBase, 0x2A, TlsGetErrorString(d0))
 
@@ -31,16 +34,26 @@
 #pragma amicall(TlsBase, 0x36, TlsTaskDetach())
 
 /* Tier 1 - TlsContext (verify policy, optional CA overrides). */
+/* Pass NULL / TAG_DONE for defaults. */
 
-#pragma amicall(TlsBase, 0x3C, NewTlsContext(a0))
+#pragma amicall(TlsBase, 0x3C, NewTlsContextA(a0))
+#if defined(__STORM__)
+#pragma tagcall(TlsBase, 0x3C, NewTlsContext(a0))
+#endif /* __STORM__ */
 #pragma amicall(TlsBase, 0x42, DisposeTlsContext(a0))
 #pragma amicall(TlsBase, 0x48, SetTlsContextAttrsA(a0,a1))
+#if defined(__STORM__)
+#pragma tagcall(TlsBase, 0x48, SetTlsContextAttrs(a0,a1))
+#endif /* __STORM__ */
 
 /* Tier 2 - TlsConnection (attach TLS to an existing TCP socket). */
 
 #pragma amicall(TlsBase, 0x4E, NewTlsConnection(a0))
 #pragma amicall(TlsBase, 0x54, DisposeTlsConnection(a0))
-#pragma amicall(TlsBase, 0x5A, TlsAttachSocket(a0,d0,a1,a2))
+#pragma amicall(TlsBase, 0x5A, TlsAttachSocketA(a0,d0,a1,a2))
+#if defined(__STORM__)
+#pragma tagcall(TlsBase, 0x5A, TlsAttachSocket(a0,d0,a1,a2))
+#endif /* __STORM__ */
 #pragma amicall(TlsBase, 0x60, TlsRead(a0,a1,d0,d1))
 #pragma amicall(TlsBase, 0x66, TlsWrite(a0,a1,d0))
 #pragma amicall(TlsBase, 0x6C, TlsPending(a0))

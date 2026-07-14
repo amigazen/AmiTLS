@@ -339,7 +339,7 @@ at_bench_verify_attach_ms(STRPTR ca_path)
 }
 
 /*
- * Time from TlsAttachSocket through first TlsWrite that completes the TLS
+ * Time from TlsAttachSocketA through first TlsWrite that completes the TLS
  * handshake (dummy GET).  Returns elapsed ms; sets *out_rc to TlsWrite rc.
  */
 static ULONG
@@ -824,7 +824,7 @@ at_new_context_verify_ca(ULONG verify, STRPTR ca_path)
     }
     tags[n].ti_Tag = TAG_DONE;
     tags[n].ti_Data = 0;
-    ctx = NewTlsContext(tags);
+    ctx = NewTlsContextA(tags);
     return ctx;
 }
 
@@ -846,7 +846,7 @@ at_attach_socket(struct TlsConnection *conn, LONG sock, STRPTR hostname,
     }
     tags[n].ti_Tag = TAG_DONE;
     tags[n].ti_Data = 0;
-    return TlsAttachSocket(conn, sock, hostname, tags);
+    return TlsAttachSocketA(conn, sock, hostname, tags);
 }
 
 static BOOL
@@ -902,7 +902,7 @@ at_clear_base_ca_path(VOID)
     tags[0].ti_Data = (ULONG)"";
     tags[1].ti_Tag = TAG_DONE;
     tags[1].ti_Data = 0;
-    TlsBaseTagList(tags);
+    TlsBaseTagsA(tags);
     TlsClearTrustedCerts();
 }
 
@@ -962,25 +962,25 @@ at_test_base_tags(VOID)
     struct TagItem tags[2];
     LONG rc;
 
-    at_step("TlsBaseTagList / TlsError");
+    at_step("TlsBaseTagsA / TlsError");
     tags[0].ti_Tag = ATBT_SSL_VERIFY;
     tags[0].ti_Data = (ULONG)ATSSL_VERIFY_NONE;
     tags[1].ti_Tag = TAG_DONE;
     tags[1].ti_Data = 0;
 
-    at_log((STRPTR)"TlsBaseTagList(ATBT_SSL_VERIFY, ATSSL_VERIFY_NONE)");
-    rc = TlsBaseTagList(tags);
-    at_dbg("TlsBaseTagList -> %ld", (long)rc);
-    at_log_tls("after TlsBaseTagList");
+    at_log((STRPTR)"TlsBaseTagsA(tags) ATBT_SSL_VERIFY=ATSSL_VERIFY_NONE");
+    rc = TlsBaseTagsA(tags);
+    at_dbg("TlsBaseTagsA -> %ld", (long)rc);
+    at_log_tls("after TlsBaseTagsA");
     if (rc != 0) {
-        at_note_code("TlsBaseTagList", rc);
+        at_note_code("TlsBaseTagsA", rc);
         return;
     }
     if (TlsError() != 0) {
-        at_note_code("TlsError after TlsBaseTagList", TlsError());
+        at_note_code("TlsError after TlsBaseTagsA", TlsError());
         return;
     }
-    at_note("TlsBaseTagList", TRUE, (STRPTR)"ATSSL_VERIFY_NONE");
+    at_note("TlsBaseTagsA", TRUE, (STRPTR)"ATSSL_VERIFY_NONE");
 }
 
 static VOID
@@ -1016,7 +1016,7 @@ at_test_context(VOID)
     LONG rc;
 
     at_step("NewTlsContext / SetTlsContextAttrsA");
-    ctx = NewTlsContext(NULL);
+    ctx = NewTlsContextA(NULL);
     at_dbg("NewTlsContext -> %08lx", (unsigned long)ctx);
     if (ctx == NULL) {
         at_log_tls("NewTlsContext failed");
@@ -1050,7 +1050,7 @@ at_test_context_ca_path(VOID)
     LONG rc;
 
     at_step("SetTlsContextAttrsA ATSA_CA_BUNDLE_PATH");
-    ctx = NewTlsContext(NULL);
+    ctx = NewTlsContextA(NULL);
     if (ctx == NULL) {
         at_note("NewTlsContext (CA path)", FALSE, (STRPTR)"NULL");
         return;
@@ -1081,7 +1081,7 @@ at_test_attach_requires_task(VOID)
         at_note("NewTlsConnection (no task)", FALSE, (STRPTR)"NULL");
         return;
     }
-    rc = TlsAttachSocket(conn, 1, (STRPTR)"localhost", NULL);
+    rc = TlsAttachSocketA(conn, 1, (STRPTR)"localhost", NULL);
     at_dbg("TlsAttachSocket -> %ld TlsGetLastError=%ld",
         (long)rc, (long)TlsGetLastError(conn));
     if (rc == ERROR_TLS_IO) {
@@ -1214,8 +1214,8 @@ at_test_connection_handles(VOID)
         at_note("TlsRead before attach", TRUE, (STRPTR)"HANDSHAKE expected");
     }
 
-    at_log((STRPTR)"TlsAttachSocket(sock=-1) (expect ERROR_TLS_INVALID_HANDLE)");
-    rc = TlsAttachSocket(conn, -1, (STRPTR)"localhost", NULL);
+    at_log((STRPTR)"TlsAttachSocketA(sock=-1) (expect ERROR_TLS_INVALID_HANDLE)");
+    rc = TlsAttachSocketA(conn, -1, (STRPTR)"localhost", NULL);
     at_dbg("TlsAttachSocket -> %ld", (long)rc);
     if (rc != ERROR_TLS_INVALID_HANDLE) {
         at_note_code("TlsAttachSocket bad sock", rc);
@@ -1453,9 +1453,9 @@ at_test_atbt_ca_bundle_attach(VOID)
     tags[0].ti_Data = (ULONG)ca_path;
     tags[1].ti_Tag = TAG_DONE;
     tags[1].ti_Data = 0;
-    rc = TlsBaseTagList(tags);
+    rc = TlsBaseTagsA(tags);
     if (rc != 0) {
-        at_note_code("TlsBaseTagList CA path", rc);
+        at_note_code("TlsBaseTagsA CA path", rc);
         return;
     }
     if (!at_ensure_task_attached()) {
@@ -1543,9 +1543,9 @@ at_test_conn_vs_bootstrap_error(VOID)
     tags[0].ti_Data = (ULONG)ATSSL_VERIFY_NONE;
     tags[1].ti_Tag = TAG_DONE;
     tags[1].ti_Data = 0;
-    rc = TlsBaseTagList(tags);
+    rc = TlsBaseTagsA(tags);
     if (rc != 0) {
-        at_note_code("TlsBaseTagList (error split)", rc);
+        at_note_code("TlsBaseTagsA (error split)", rc);
         return;
     }
     if (!at_ensure_task_attached()) {

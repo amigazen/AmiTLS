@@ -4,17 +4,17 @@ amitls.library/background
 amitls.library/errors
 amitls.library/hooks
 amitls.library/tags
-amitls.library/TlsBaseTagList
+amitls.library/TlsBaseTagsA
 amitls.library/TlsError
 amitls.library/TlsGetErrorString
 amitls.library/TlsTaskAttach
 amitls.library/TlsTaskDetach
-amitls.library/NewTlsContext
+amitls.library/NewTlsContextA
 amitls.library/DisposeTlsContext
 amitls.library/SetTlsContextAttrsA
 amitls.library/NewTlsConnection
 amitls.library/DisposeTlsConnection
-amitls.library/TlsAttachSocket
+amitls.library/TlsAttachSocketA
 amitls.library/TlsHandshake
 amitls.library/TlsRead
 amitls.library/TlsWrite
@@ -37,7 +37,7 @@ amitls.library/TlsClearTrustedCerts
 
    amitls does not perform DNS lookup, TCP connect(), or close() on sockets.
    The caller opens bsdsocket.library, connects a TCP socket, passes the fd
-   to TlsAttachSocket(), and closes the socket after TlsShutdown() and
+   to TlsAttachSocketA(), and closes the socket after TlsShutdown() and
    DisposeTlsConnection().
 
    BOOTSTRAP
@@ -49,7 +49,7 @@ amitls.library/TlsClearTrustedCerts
 
    API TIERS
 
-   Tier 0 — TlsBaseTagList / TlsError
+   Tier 0 — TlsBaseTagsA / TlsBaseTags / TlsError
      Per-process defaults (CA bundle path, verify policy, break mask).
 
    Tier 1 — TlsTaskAttach, TlsContext
@@ -75,10 +75,10 @@ amitls.library/TlsClearTrustedCerts
            { ATBT_CA_BUNDLE_PATH, (ULONG)"RAM:mozilla.pem" },
            { TAG_DONE, 0 }
        };
-       TlsBaseTagList(basetags);
+       TlsBaseTagsA(basetags);
    }
 
-   ctx = NewTlsContext(NULL);
+   ctx = NewTlsContextA(NULL);             /* or NewTlsContext(TAG_DONE) */
    conn = NewTlsConnection(ctx);
    sock = /* socket() + connect() to host:443 in caller code */;
    TlsAttachSocket(conn, sock, hostname,
@@ -96,7 +96,7 @@ amitls.library/TlsClearTrustedCerts
 
    DEFERRED HANDSHAKE (TlsHandshake before first TlsWrite)
 
-   TlsAttachSocket(conn, sock, hostname, TAG_DONE);
+   TlsAttachSocketA(conn, sock, hostname, NULL);
    TlsHandshake(conn, 30);                 /* revision 2+ / ABI v1.1 */
    TlsRead(conn, greeting, sizeof(greeting), 5);  /* TLS app data */
    TlsWrite(conn, request, request_len);
@@ -132,7 +132,7 @@ amitls.library/TlsClearTrustedCerts
 
    Two scopes:
      TlsError() — bootstrap, task attach, context allocation, trust path
-         configuration, and TlsAttachSocket failures.
+         configuration, and TlsAttachSocketA failures.
      TlsGetLastError(conn) — authoritative for TlsRead/TlsWrite/TlsHandshake/
          TlsShutdown on that connection.
 
@@ -181,7 +181,7 @@ amitls.library/TlsClearTrustedCerts
        TlsHandshake engine retry limit exceeded (ATLS_TLS_IO_TRIES).
 
    ERROR_TLS_HANDSHAKE (8804)
-       TLS handshake failed, TlsAttachSocket engine init failed, or
+       TLS handshake failed, TlsAttachSocketA engine init failed, or
        TlsRead/TlsWrite called before handshake completed.
 
    ERROR_TLS_VERIFY (8805)
@@ -217,7 +217,7 @@ amitls.library/TlsClearTrustedCerts
 
    ERROR_TLS_IO (8814)
        bsdsocket I/O error (including missing/unreadable CA bundle file),
-       or TlsAttachSocket/TlsRead/TlsWrite/TlsHandshake/TlsShutdown without
+       or TlsAttachSocketA/TlsRead/TlsWrite/TlsHandshake/TlsShutdown without
        a prior TlsTaskAttach on the current Exec task.
 
    ERROR_TLS_WANT_READ (8815)
@@ -256,11 +256,13 @@ amitls.library/TlsClearTrustedCerts
 
    GENERAL INFORMATION
 
-   TagItem-based configuration uses TlsBaseTagList(), NewTlsContext(),
-   SetTlsContextAttrsA(), and TlsAttachSocket().  All tag lists are
-   terminated with TAG_DONE.
+   TagItem-based configuration uses TlsBaseTagsA(), NewTlsContextA(),
+   SetTlsContextAttrsA(), and TlsAttachSocketA().  Variadic wrappers
+   TlsBaseTags(), NewTlsContext(), SetTlsContextAttrs(), and
+   TlsAttachSocket() are compiler tagcall/macros over the same LVOs.
+   All tag lists are terminated with TAG_DONE.
 
-   ATBT_* — TlsBaseTagList (Tier 0)
+   ATBT_* — TlsBaseTagsA (Tier 0)
 
    ATBT_ERRNOPTR
        Default errno pointer for TlsTaskAttach() when errno_ptr is NULL.
@@ -286,7 +288,7 @@ amitls.library/TlsClearTrustedCerts
    ATBT_LOG_HOOK
        Reserved for v2 diagnostic hook.
 
-   ATSA_* — NewTlsContext / SetTlsContextAttrsA (Tier 1)
+   ATSA_* — NewTlsContextA / SetTlsContextAttrsA (Tier 1)
 
    ATSA_SSL_VERIFY
        Per-context verify policy override.
@@ -306,7 +308,7 @@ amitls.library/TlsClearTrustedCerts
        when changed.  Falls back to ATBT_CA_BUNDLE_PATH via atls_context_ca_path()
        when unset.  Parsed lazily on first VERIFY_PEER attach.
 
-   ATTA_* — TlsAttachSocket (Tier 2)
+   ATTA_* — TlsAttachSocketA (Tier 2)
 
    ATTA_SSL_VERIFY
        Per-connection verify policy override for this attach.
@@ -334,32 +336,38 @@ amitls.library/TlsClearTrustedCerts
                                    hostname policy reserved for v2.
 
    SEE ALSO
-       TlsBaseTagList(), NewTlsContext(), SetTlsContextAttrsA(),
-       TlsAttachSocket(), amitls.library/background
+       TlsBaseTagsA(), NewTlsContextA(), SetTlsContextAttrsA(),
+       TlsAttachSocketA(), amitls.library/background
 
-amitls.library/TlsBaseTagList                   amitls.library/TlsBaseTagList
+amitls.library/TlsBaseTagsA                   amitls.library/TlsBaseTagsA
 
    NAME
-       TlsBaseTagList -- Set per-process library defaults.  (V1)
+       TlsBaseTagsA -- Set per-process library defaults.  (V1)
 
    SYNOPSIS
-       rc = TlsBaseTagList(tags);
+       rc = TlsBaseTagsA(tags);
        D0                    A0
 
-       LONG TlsBaseTagList(struct TagItem *tags);
+       LONG TlsBaseTagsA(struct TagItem *tags);
+
+       rc = TlsBaseTags(Tag1, ...);
+
+       LONG TlsBaseTags(Tag firstTag, ...);
 
    FUNCTION
        Configures process-wide defaults after OpenLibrary().  Tags are
-       ATBT_* values; see amitls.library/tags.
+       ATBT_* values; see amitls.library/tags.  TlsBaseTags() is the
+       varargs wrapper for the same LVO.
 
    INPUTS
-       tags - TagItem array terminated with TAG_DONE.
+       tags - TagItem array terminated with TAG_DONE, or NULL.
+              Variadic form: tag/data pairs ending in TAG_DONE.
 
    RESULT
        rc - 0 on success, ERROR_TLS_INVALID_HANDLE on bad library base.
 
    SEE ALSO
-       TlsError(), amitls.library/tags, TlsLoadCABundle()
+       TlsError(), amitls.library/tags, TlsLoadCABundle(), TlsBaseTags()
 
 amitls.library/TlsError                               amitls.library/TlsError
 
@@ -375,9 +383,9 @@ amitls.library/TlsClearTrustedCerts
    FUNCTION
        Returns the most recent ERROR_TLS_* code stored on the library base.
        Updated by TlsTaskAttach failures, context allocation, trust path LVOs,
-       and TlsAttachSocket (also mirrored to TlsGetLastError on the conn).
-       Cleared to 0 on successful TlsBaseTagList, TlsTaskAttach,
-       SetTlsContextAttrsA, and successful TlsAttachSocket.  TlsRead/TlsWrite/
+       and TlsAttachSocketA (also mirrored to TlsGetLastError on the conn).
+       Cleared to 0 on successful TlsBaseTagsA, TlsTaskAttach,
+       SetTlsContextAttrsA, and successful TlsAttachSocketA.  TlsRead/TlsWrite/
        TlsHandshake failures update TlsGetLastError(conn) only — not TlsError().
 
    RESULT
@@ -426,7 +434,7 @@ amitls.library/TlsClearTrustedCerts
        SocketBaseTagList(SBTC_ERRNOPTR/SBTC_HERRNOLONGPTR) on that base via
        atls_sock_configure_errno().
 
-       Must be called once per task before TlsAttachSocket, TlsRead,
+       Must be called once per task before TlsAttachSocketA, TlsRead,
        TlsWrite, TlsHandshake, or TlsShutdown.  Refcounted — repeated
        attach on the same task increments the count.
 
@@ -443,11 +451,11 @@ amitls.library/TlsClearTrustedCerts
            ERROR_TLS_OUT_OF_MEMORY, or ERROR_TLS_INVALID_HANDLE.
 
    NOTES
-       TlsAttachSocket without a prior TlsTaskAttach on the same task
+       TlsAttachSocketA without a prior TlsTaskAttach on the same task
        returns ERROR_TLS_IO.
 
    SEE ALSO
-       TlsTaskDetach(), TlsAttachSocket(), amitls.library/background
+       TlsTaskDetach(), TlsAttachSocketA(), amitls.library/background
 
 amitls.library/TlsTaskDetach                     amitls.library/TlsTaskDetach
 
@@ -468,30 +476,38 @@ amitls.library/TlsClearTrustedCerts
    SEE ALSO
        TlsTaskAttach()
 
-amitls.library/NewTlsContext                     amitls.library/NewTlsContext
+amitls.library/NewTlsContextA                     amitls.library/NewTlsContextA
 
    NAME
-       NewTlsContext -- Allocate a TLS settings context.  (V1)
+       NewTlsContextA -- Allocate a TLS settings context.  (V1)
 
    SYNOPSIS
-       ctx = NewTlsContext(tags);
+       ctx = NewTlsContextA(tags);
        D0                    A0
 
-       struct TlsContext *NewTlsContext(struct TagItem *tags);
+       struct TlsContext *NewTlsContextA(struct TagItem *tags);
+
+       ctx = NewTlsContext(Tag1, ...);
+
+       struct TlsContext *NewTlsContext(Tag firstTag, ...);
 
    FUNCTION
        Creates a Tier 1 context inheriting ATBT_* defaults (verify policy
        ATSSL_VERIFY_PEER, no CA bundle until configured).  Optional tags
        are ATSA_* values applied at creation; see amitls.library/tags.
+       NewTlsContext() is the varargs wrapper for the same LVO.
 
    INPUTS
        tags - TagItem list, or NULL for defaults only.
+              Variadic form: tag/data pairs ending in TAG_DONE
+              (NewTlsContext(TAG_DONE) for defaults).
 
    RESULT
        ctx - opaque handle, or NULL on failure (TlsError()).
 
    SEE ALSO
-       DisposeTlsContext(), SetTlsContextAttrsA(), NewTlsConnection()
+       DisposeTlsContext(), SetTlsContextAttrsA(), NewTlsConnection(),
+       NewTlsContext()
 
 amitls.library/DisposeTlsContext             amitls.library/DisposeTlsContext
 
@@ -511,10 +527,10 @@ amitls.library/TlsClearTrustedCerts
        NewTlsConnection(NULL)).
 
    INPUTS
-       ctx - from NewTlsContext(), or NULL (no action).
+       ctx - from NewTlsContextA(), or NULL (no action).
 
    SEE ALSO
-       NewTlsContext()
+       NewTlsContextA()
 
 amitls.library/SetTlsContextAttrsA         amitls.library/SetTlsContextAttrsA
 
@@ -527,18 +543,24 @@ amitls.library/TlsClearTrustedCerts
 
        LONG SetTlsContextAttrsA(struct TlsContext *ctx, struct TagItem *tags);
 
+       rc = SetTlsContextAttrs(ctx, Tag1, ...);
+
+       LONG SetTlsContextAttrs(struct TlsContext *ctx, ...);
+
    FUNCTION
        Applies ATSA_* tags.  See amitls.library/tags.
+       SetTlsContextAttrs() is the varargs wrapper for the same LVO.
 
    INPUTS
        ctx  - valid TlsContext handle.
        tags - TagItem list, TAG_DONE terminated.
+              Variadic form: tag/data pairs ending in TAG_DONE.
 
    RESULT
        rc - 0 on success, ERROR_TLS_INVALID_HANDLE when ctx is NULL.
 
    SEE ALSO
-       NewTlsContext(), amitls.library/tags
+       NewTlsContextA(), amitls.library/tags, SetTlsContextAttrs()
 
 amitls.library/NewTlsConnection               amitls.library/NewTlsConnection
 
@@ -562,7 +584,7 @@ amitls.library/TlsClearTrustedCerts
        conn - opaque handle, or NULL on failure (TlsError()).
 
    SEE ALSO
-       DisposeTlsConnection(), TlsAttachSocket()
+       DisposeTlsConnection(), TlsAttachSocketA()
 
 amitls.library/DisposeTlsConnection       amitls.library/DisposeTlsConnection
 
@@ -587,22 +609,28 @@ amitls.library/TlsClearTrustedCerts
    SEE ALSO
        NewTlsConnection(), TlsShutdown()
 
-amitls.library/TlsAttachSocket                 amitls.library/TlsAttachSocket
+amitls.library/TlsAttachSocketA                 amitls.library/TlsAttachSocketA
 
    NAME
-       TlsAttachSocket -- Install TLS on an existing TCP socket.  (V1)
+       TlsAttachSocketA -- Install TLS on an existing TCP socket.  (V1)
 
    SYNOPSIS
-       rc = TlsAttachSocket(conn, sock, hostname, tags);
+       rc = TlsAttachSocketA(conn, sock, hostname, tags);
        D0                     A0   D0   A1        A2
 
-       LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock,
+       LONG TlsAttachSocketA(struct TlsConnection *conn, LONG sock,
            STRPTR hostname, struct TagItem *tags);
+
+       rc = TlsAttachSocket(conn, sock, hostname, Tag1, ...);
+
+       LONG TlsAttachSocket(struct TlsConnection *conn, LONG sock,
+           STRPTR hostname, ...);
 
    FUNCTION
        Initializes BearSSL client engine on sock.  hostname is used for SNI
        (max 255 bytes, NUL-terminated) and must be non-NULL.  Applies ATTA_*
        tags (ATTA_SSL_VERIFY resolved via atls_resolve_verify()).
+       TlsAttachSocket() is the varargs wrapper for the same LVO.
 
        Does not perform the TLS handshake — that completes on the first
        successful TlsWrite(), or explicitly via TlsHandshake() (revision 2+).
@@ -624,9 +652,8 @@ amitls.library/TlsClearTrustedCerts
        rc - 0 on success, ERROR_TLS_* on failure.  Sets TlsGetLastError(conn).
 
    SEE ALSO
-       TlsWrite(), TlsHandshake(), TlsTaskAttach(), amitls.library/tags
-
-amitls.library/TlsHandshake                       amitls.library/TlsHandshake
+       TlsWrite(), TlsHandshake(), TlsTaskAttach(), amitls.library/tags,
+       TlsAttachSocket()
 
    NAME
        TlsHandshake -- Complete TLS handshake without application data.  (V1.1)
@@ -652,14 +679,14 @@ amitls.library/TlsClearTrustedCerts
        Library revision 2+ (AMITLSVERSION 1, revision 2).
 
    INPUTS
-       conn          - TlsConnection after TlsAttachSocket().
+       conn          - TlsConnection after TlsAttachSocketA().
        timeout_secs  - reserved (not yet applied); internal retry limit only.
 
    RESULT
        rc - 0 on success, ERROR_TLS_* on failure.
 
    SEE ALSO
-       TlsAttachSocket(), TlsWrite(), ATTA_EXTERNAL_WAIT
+       TlsAttachSocketA(), TlsWrite(), ATTA_EXTERNAL_WAIT
 
 amitls.library/TlsRead                                 amitls.library/TlsRead
 
@@ -715,7 +742,7 @@ amitls.library/TlsClearTrustedCerts
 
    FUNCTION
        Encrypts and sends len bytes.  On the first TlsWrite after
-       TlsAttachSocket(), completes the TLS handshake (client hello through
+       TlsAttachSocketA(), completes the TLS handshake (client hello through
        finished).  Certificate verification runs during handshake when
        verify policy is not ATSSL_VERIFY_NONE.
 
@@ -725,7 +752,7 @@ amitls.library/TlsClearTrustedCerts
        change TlsWrite behaviour.
 
    INPUTS
-       conn   - TlsConnection after TlsAttachSocket().
+       conn   - TlsConnection after TlsAttachSocketA().
        buffer - source data.
        len    - byte count (>0).
 
@@ -737,7 +764,7 @@ amitls.library/TlsClearTrustedCerts
        TlsGetCertVerifyDetail() and TlsGetPeerCert() for diagnostics.
 
    SEE ALSO
-       TlsRead(), TlsAttachSocket(), TlsHandshake()
+       TlsRead(), TlsAttachSocketA(), TlsHandshake()
 
 amitls.library/TlsPending                           amitls.library/TlsPending
 
@@ -805,7 +832,7 @@ amitls.library/TlsClearTrustedCerts
    FUNCTION
        Returns conn->tc_LastError — the last ERROR_TLS_* from I/O on this
        connection.  Authoritative after TlsRead, TlsWrite, TlsHandshake,
-       TlsShutdown, and TlsAttachSocket.  Also updated on TlsTaskAttach
+       TlsShutdown, and TlsAttachSocketA.  Also updated on TlsTaskAttach
        failures propagated through those entry points.  Separate from
        TlsError() library-base errors.
 
@@ -908,7 +935,7 @@ amitls.library/TlsClearTrustedCerts
    FUNCTION
        Sets the same process-wide PEM bundle path as ATBT_CA_BUNDLE_PATH.
        Convenience for callers that configure trust via function call instead
-       of TlsBaseTagList().  Does not parse the file until a VERIFY_PEER
+       of TlsBaseTagsA().  Does not parse the file until a VERIFY_PEER
        handshake requires anchors.
 
        amitls does not search for a default bundle — caller must supply a
@@ -921,7 +948,7 @@ amitls.library/TlsClearTrustedCerts
        rc - 0 on success, ERROR_TLS_INVALID_HANDLE or ERROR_TLS_OUT_OF_MEMORY.
 
    SEE ALSO
-       TlsBaseTagList(), ATBT_CA_BUNDLE_PATH, ATSA_CA_BUNDLE_PATH,
+       TlsBaseTagsA(), ATBT_CA_BUNDLE_PATH, ATSA_CA_BUNDLE_PATH,
        TlsClearTrustedCerts()
 
 amitls.library/TlsAddTrustedCert               amitls.library/TlsAddTrustedCert
